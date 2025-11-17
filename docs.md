@@ -32,5 +32,10 @@ Ještě chyby spojené obecně s datatypy:
  
 Zde je výběr Micilang funkcí a statementů:
 
-+ <code>print(*value*)</code> // Ukáže na obrazovce value
-var x // vytvoří prázdnou proměnnou x
++ <code>write(*output*)</code> - Vypíše na obrazovku *output*
++ <code>var *x* = *value*</code> - Vytvoří proměnnou *x*, která má *value*
++ <code></code>
+
+Následující funkce nejsou součástí specifikace Micilangu. Nejsou tedy nedílnou součástí jazyku, a spíš jsou věci pro testování:
+
++ <code>shell(*value*)</code> - Provede *value* jako program v Pythonu.
