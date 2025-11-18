@@ -1,13 +1,22 @@
 """
 Micilang Python Interpreter
+
+https://craftinginterpreters.com/scanning.html <- veliky dobry
+
+TODO:
+    dodělat lexer
+        trochu poklidit ať je to hezky (ale nemusim)
+        udelat keywaordy jaksepatri
+        
+    udělat parser
+    ehm ehm jo
+    zastrelit se (tohle je tak blby fdfsdsdg)
 """
 
 # Získání kódu
 
-suscode = "var x = 2;" \
+code = "var x = 2;" \
 "write(x)"      # Tady půjde Micilang kód. Soubory a shell vymyslím později.
-
-code = "var x = 289; write(x)"
 
 # Queue object
 
