@@ -15,7 +15,7 @@ TODO:
 
 # Získání kódu
 
-code = "var x = 2;" \
+code = "var x = 2 + 1;" \
 "write(x)"      # Tady půjde Micilang kód. Soubory a shell vymyslím později.
 
 # Queue object
@@ -34,8 +34,8 @@ def error(position, message):
 class Lexer():
     def __init__(self): # Lexer setup
 
-        self.KEYWORDS = ["var",          # Statementy
-                "write"]        # Funkce
+        self.KEYWORDS = ["VAR",          # Statementy
+                "WRITE"]        # Funkce
 
         self.tokens = [] # Veškeré tokeny
         self.chars = "" # momentální paměť
@@ -45,6 +45,14 @@ class Lexer():
     def advance(self):
         self.cur += 1
         self.chars = ""
+    
+    def peek(self, n): # O kolik znaků se podívat dál?
+        peeked = ""
+        peek_cur = self.cur
+        while self.cur < len(code) and len(peeked) < n:
+            peek_cur += 1
+            peeked += code[peek_cur]
+        return peeked
 
     def gettokens(self):  # Pravý lexer
 
@@ -71,35 +79,49 @@ class Lexer():
                 self.chars = ""
     
             elif code[self.cur] == ";":          # Konec statementu
-                self.tokens.append(("ENDSTATEMENT", ";"))
+                self.tokens.append(("ENDSTATEMENT"))
                 print(self.tokens)
                 self.advance()
+            
+            elif code[self.cur] == "/":
+                if self.peek(1) == "/":
+                    pass
     
             elif code[self.cur] == "=":
-                self.chars += code[self.cur]
-                self.tokens.append(("ASSIGN", self.chars))
+                self.tokens.append(("ASSIGN"))
+                print(self.tokens)
+                self.advance()
+            
+            elif code[self.cur] == "+":
+                self.tokens.append(("PLUS"))
                 print(self.tokens)
                 self.advance()
         
             elif code[self.cur] == "(":
-                self.tokens.append(("L_PARENS", "("))
+                self.tokens.append(("L_PARENS"))
                 print(self.tokens)
                 self.advance()
+
             elif code[self.cur] == ")":
-                self.tokens.append(("R_PARENS", ")"))
+                self.tokens.append(("R_PARENS"))
                 print(self.tokens)
                 self.advance()
         
             elif code[self.cur] == " ":
                 self.advance()
-    
+
             else: # Pro mezery/ostatní znaky ignorovat zatim
                 print(error(self.cur, f"Invalid Character \"{code[self.cur]}\""))
                 self.advance()
     
-        self.tokens.append(("EOF", ""))
+        self.tokens.append(("EOF"))
         
         return self.tokens
 
-lexer = Lexer()
-output = (lexer.gettokens())
+
+# Hl. loop
+
+if __name__ == "__main__":
+    lexer = Lexer()
+    output = (lexer.gettokens())
+    print(output)
