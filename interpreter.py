@@ -10,13 +10,11 @@ TODO:
         
     udělat parser
     ehm ehm jo
-    zastrelit se (tohle je tak blby fdfsdsdg)
 """
 
 # Získání kódu
 
-code = "var x = 2 + 1;" \
-"write(x)"      # Tady půjde Micilang kód. Soubory a shell vymyslím později.
+user_code = "var x = 2 + 1; // This is a comment\nwrite(x);"      # Tady půjde Micilang kód. Soubory a shell vymyslím později.
 
 # Queue object
 
@@ -32,7 +30,9 @@ def error(position, message):
 # Lexer
 
 class Lexer():
-    def __init__(self): # Lexer setup
+    def __init__(self, code): # Lexer setup
+
+        self.code = code
 
         self.KEYWORDS = ["VAR",          # Statementy
                 "WRITE"]        # Funkce
@@ -49,69 +49,74 @@ class Lexer():
     def peek(self, n): # O kolik znaků se podívat dál?
         peeked = ""
         peek_cur = self.cur
-        while self.cur < len(code) and len(peeked) < n:
+        while self.cur < len(self.code) and len(peeked) < n:
             peek_cur += 1
-            peeked += code[peek_cur]
+            peeked += self.code[peek_cur]
         return peeked
 
     def gettokens(self):  # Pravý lexer
 
-        while self.cur < len(code):
+        while self.cur < len(self.code):
     
-            if code[self.cur].isalpha():         # Keywordy a identifikátory
-                while self.cur < len(code) and code[self.cur].isalpha():
-                    self.chars += code[self.cur]
+            if self.code[self.cur].isalpha():         # Keywordy a identifikátory
+                while self.cur < len(self.code) and self.code[self.cur].isalpha():
+                    self.chars += self.code[self.cur]
                     self.cur += 1
-                if self.chars in self.KEYWORDS:
-                    self.tokens.append(("KEYWORD", self.chars))
+                if self.chars.upper() in self.KEYWORDS:
+                    self.tokens.append((self.chars.upper()))
                     print(self.tokens)
                 else:
                     self.tokens.append(("IDENTIFIER", self.chars))
                     print(self.tokens)
                 self.chars = ""
         
-            elif code[self.cur].isnumeric():
-                while self.cur < len(code) and code[self.cur].isnumeric():
-                    self.chars += code[self.cur]
+            elif self.code[self.cur].isnumeric():
+                while self.cur < len(self.code) and self.code[self.cur].isnumeric():
+                    self.chars += self.code[self.cur]
                     self.cur += 1
                 self.tokens.append(("INTEGER", self.chars))
                 print(self.tokens)
                 self.chars = ""
     
-            elif code[self.cur] == ";":          # Konec statementu
+            elif self.code[self.cur] == ";":          # Konec statementu
                 self.tokens.append(("ENDSTATEMENT"))
                 print(self.tokens)
                 self.advance()
             
-            elif code[self.cur] == "/":
+            elif self.code[self.cur] == "/":         # Komentáře / Děleno
                 if self.peek(1) == "/":
-                    pass
+                    self.cur += 2
+                    while self.cur < len(self.code) and self.code[self.cur] != "\n": self.cur += 1
+                else: #NEZAPOMENOUT TO UDĚLAT I PRO /// !!!!!!
+                    self.tokens.append(("DIVIDE"))
+                    print(self.tokens)
+                    self.advance()
     
-            elif code[self.cur] == "=":
+            elif self.code[self.cur] == "=":
                 self.tokens.append(("ASSIGN"))
                 print(self.tokens)
                 self.advance()
             
-            elif code[self.cur] == "+":
+            elif self.code[self.cur] == "+":
                 self.tokens.append(("PLUS"))
                 print(self.tokens)
                 self.advance()
         
-            elif code[self.cur] == "(":
+            elif self.code[self.cur] == "(":
                 self.tokens.append(("L_PARENS"))
                 print(self.tokens)
                 self.advance()
 
-            elif code[self.cur] == ")":
+            elif self.code[self.cur] == ")":
                 self.tokens.append(("R_PARENS"))
                 print(self.tokens)
                 self.advance()
         
-            elif code[self.cur] == " ":
+            elif self.code[self.cur] == " " or self.code[self.cur] == "\n":
                 self.advance()
 
             else: # Pro mezery/ostatní znaky ignorovat zatim
-                print(error(self.cur, f"Invalid Character \"{code[self.cur]}\""))
+                print(error(self.cur, f"Invalid Character \"{self.code[self.cur]}\""))
                 self.advance()
     
         self.tokens.append(("EOF"))
@@ -119,9 +124,15 @@ class Lexer():
         return self.tokens
 
 
+# Parser (asi se zastřelim)
+
+class Parser():
+    def __init__(self):
+        pass
+
 # Hl. loop
 
 if __name__ == "__main__":
-    lexer = Lexer()
+    lexer = Lexer(user_code)
     output = (lexer.gettokens())
     print(output)
