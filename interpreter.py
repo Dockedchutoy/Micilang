@@ -146,8 +146,8 @@ class Parser():
         self.tokens = tokens
         self.cur = 0
     
-    def check(self, type):
-        if self.cur
+    # def check(self, type):
+    #     if self.cur
     
     def match(self, *types):
         if self.tokens[self.cur] in types:
