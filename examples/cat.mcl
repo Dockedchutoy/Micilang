@@ -1,0 +1,2 @@
+var command = input; // Input je příkaz pro přijmutí vstupu od uživatele
+write(command)
