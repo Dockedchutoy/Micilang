@@ -13,7 +13,10 @@ TODO:
 
 Grammer:
 
-statement -> 
+statement -> term SEMICOLON;
+term -> factor ( ( "-" | "+" ) factor )* ;
+factor -> primary ( ( "/" | "*" ) primary )* ;
+primary -> NUMBER | STRING | "true" | "false" | "null" | "(" expression ")" ;
 
 operation -> statement operator statement
 """
@@ -99,6 +102,9 @@ class Lexer():
                     self.tokens.append(("SLASH"))
                     print(self.tokens)
                     self.cur += 1
+            
+            elif self.code[self.cur] == "*":
+                self.tokens.append(("STAR"))
     
             elif self.code[self.cur] == "=":
                 self.tokens.append(("EQUAL"))
@@ -136,8 +142,25 @@ class Lexer():
 # Parser (asi se zastřelim)
 
 class Parser():
-    def __init__(self):
-        pass
+    def __init__(self, tokens):
+        self.tokens = tokens
+        self.cur = 0
+    
+    def check(self, type):
+        if self.cur
+    
+    def match(self, *types):
+        if self.tokens[self.cur] in types:
+            pass
+    
+    def statement(self):
+        return self.term()
+
+    def term(self):
+        stat = self.factor()
+
+        while self.match("PLUS", "MINUS"):
+            pass
 
 # Hl. loop
 
