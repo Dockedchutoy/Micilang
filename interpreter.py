@@ -4,26 +4,14 @@ Micilang Python Interpreter
 https://craftinginterpreters.com/scanning.html <- veliky dobry
 
 TODO:
-    dodělat lexer
-        trochu poklidit ať je to hezky (ale nemusim)
-        udelat keywaordy jaksepatri
         
     udělat parser
     ehm ehm jo
-
-Grammer:
-
-expression -> term SEMICOLON;
-term -> factor ( ( "-" | "+" ) factor )* ;
-factor -> primary ( ( "/" | "*" ) primary )* ;
-primary -> NUMBER | STRING | "true" | "false" | "null" | "(" expression ")" ;
-
-operation -> statement operator statement
 """
 
 # Získání kódu
 
-user_code = 'var x = 1 + 6 / 2; // This is a comment\nwrite(x);'      # Tady půjde Micilang kód. Soubory a shell vymyslím později.
+user_code = 'var x = 1 * 2 + 6 / 2; // This is a comment\nwrite(x);'      # Tady půjde Micilang kód. Soubory a shell vymyslím později.
 
 user_code = "1 * 2 + 6 / 2; // 5"
 
@@ -34,8 +22,14 @@ class Queue():
 
 # Error reporting
 
+hadError = False
+
 def error(position, message):
-    return f"ERROR AT {position}: {message}."
+    report(position, "", message)
+
+def report(position, item, message):
+    print(f"[{position}] Error{item}: {message}")
+    hadError = True
 
 
 # Lexer
@@ -135,7 +129,7 @@ class Lexer():
                 self.cur += 1
 
             else: # Pro mezery/ostatní znaky ignorovat zatim
-                print(error(self.cur, f"Invalid Character \"{self.code[self.cur]}\""))
+                error(self.cur, f"Invalid Character \"{self.code[self.cur]}\"")
 
             self.chars = ""
     
@@ -150,6 +144,20 @@ class Parser():
     def __init__(self, tokens):
         self.tokens = tokens
         self.cur = 0
+    
+    def error(self, token, message):
+        error(token, message)
+    
+    def sync(self):
+        self.advance()
+
+        while self.peek()[0] != "EOF":
+            if self.previous()[0] == "SEMICOLON":
+                return None
+            match self.peek()[0]:
+                case "VAR" | "WRITE":
+                    return None
+            self.advance()
     
     def peek(self): # Získá současný token
         return self.tokens[self.cur]
@@ -178,12 +186,12 @@ class Parser():
         if self.check(type):
             return self.advance()
         
-        # error handling later
+        self.error(self.peek(), message)
     
     def expression(self): # expression -> term SEMICOLON;
         return self.term()
     
-        # semicolons later
+        # semicolons later for statements
 
     def term(self): # term -> factor ( ( "-" | "+" ) factor )* ;
         expr = self.factor()
@@ -212,6 +220,8 @@ class Parser():
             expr = self.expression()
             self.expect("R_PARENS", "Missing \")\" after expression.")
             return ("grouping", expr)
+        
+        self.error(self.peek(), "Missing expression")
         
         # error handling here
     
