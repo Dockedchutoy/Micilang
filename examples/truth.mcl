@@ -1,9 +1,12 @@
 var cmd = input("Enter 0 or 1");
-if num(cmd) = 0 (
-	write(0);
-);
-elseif num(cmd) = 1 (
-	while true (
-		print(1);
-	);
-);
+
+if num(cmd) = 0 {
+	printl 0;
+};
+
+elseif num(cmd) = 1 {
+	
+	while true {
+		printl 1;
+	};
+};

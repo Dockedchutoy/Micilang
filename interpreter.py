@@ -11,14 +11,9 @@ TODO:
 
 # Získání kódu
 
-user_code = 'var x = 1 * 2 + 6 / 2; // This is a comment\nwrite(x);'      # Tady půjde Micilang kód. Soubory a shell vymyslím později.
+user_code = 'var x = 1 * 2 + 6 / 2; // This is a comment\nprintl x;'      # Tady půjde Micilang kód. Soubory a shell vymyslím později.
 
-user_code = "1 * 2 + 6 / 2; // 5"
-
-# Queue object
-
-class Queue():
-    pass
+user_code = "1 * 2 + (6 / 2); // 5"
 
 # Error reporting
 
@@ -34,14 +29,15 @@ def report(position, item, message):
 
 # Lexer
 
+
 class Lexer():
     def __init__(self, code): # Lexer setup
 
         self.code = code
 
-        self.KEYWORDS = ["VAR", "PRINT",         # Statementy
-                "INPUT"        # Funkce
-                ]                       # Další speciální
+        self.KEYWORDS = ["VAR!", "PRINTL!", "IF!", "ELSEIF!", "ELSE!", "FUNC!", "WHILE!"         # Statementy
+                "INPUT!", "NUM!"        # Funkce
+                "TRUE!", "FALSE!", "NULL!"]                       # Další speciální
 
         self.tokens = [] # Veškeré tokeny
         self.chars = "" # momentální paměť
@@ -61,11 +57,11 @@ class Lexer():
         while self.cur < len(self.code):
     
             if self.code[self.cur].isalpha():         # Keywordy a identifikátory
-                while self.cur < len(self.code) and self.code[self.cur].isalpha():
+                while self.cur < len(self.code) and self.code[self.cur].isalnum():
                     self.chars += self.code[self.cur]
                     self.cur += 1
                 if self.chars.upper() in self.KEYWORDS:
-                    self.tokens.append((self.chars.upper()))
+                    self.tokens.append((self.chars.upper(), None))
                     print(self.tokens)
                 else:
                     self.tokens.append(("IDENTIFIER", self.chars))
@@ -87,7 +83,7 @@ class Lexer():
                 print(self.tokens)
     
             elif self.code[self.cur] == ";":          # Konec statementu
-                self.tokens.append(("SEMICOLON", None))
+                self.tokens.append(("SEMICOLON", ";"))
                 print(self.tokens)
                 self.cur += 1
             
@@ -96,32 +92,32 @@ class Lexer():
                     self.cur += 2
                     while self.cur < len(self.code) and self.code[self.cur] != "\n": self.cur += 1
                 else: #NEZAPOMENOUT TO UDĚLAT I PRO /// !!!!!!
-                    self.tokens.append(("SLASH", None))
+                    self.tokens.append(("SLASH", "/"))
                     print(self.tokens)
                     self.cur += 1
             
             elif self.code[self.cur] == "*":
-                self.tokens.append(("STAR", None))
+                self.tokens.append(("STAR", "*"))
                 print(self.tokens)
                 self.cur += 1
     
             elif self.code[self.cur] == "=":
-                self.tokens.append(("EQUAL", None))
+                self.tokens.append(("EQUAL", "="))
                 print(self.tokens)
                 self.cur += 1
             
             elif self.code[self.cur] == "+":
-                self.tokens.append(("PLUS", None))
+                self.tokens.append(("PLUS", "+"))
                 print(self.tokens)
                 self.cur += 1
         
             elif self.code[self.cur] == "(":
-                self.tokens.append(("L_PARENS", None))
+                self.tokens.append(("L_PARENS", "("))
                 print(self.tokens)
                 self.cur += 1
 
             elif self.code[self.cur] == ")":
-                self.tokens.append(("R_PARENS", None))
+                self.tokens.append(("R_PARENS", ")"))
                 print(self.tokens)
                 self.cur += 1
         
@@ -133,12 +129,52 @@ class Lexer():
 
             self.chars = ""
     
-        self.tokens.append(("EOF"))
+        self.tokens.append(("EOF", None))
         
         return self.tokens
 
 
+# Parser Visitor Classes (ano)
+
+
+class Expr():
+    pass
+
+class Literal(Expr):
+    def __init__(self, val):
+        self.val = val
+    
+    def __str__(self):
+        return f"{self.val}"
+
+    def accept(self, visitor):
+        return visitor.visitLiteral(self)
+
+class Group(Expr):
+    def __init__(self, expression):
+        self.expression = expression
+    
+    def __str__(self):
+        return f"Group({self.expression})"
+
+    def accept(self, visitor):
+        return visitor.visitGroup(self)
+
+class Binary(Expr):
+    def __init__(self, left, operator, right):
+        self.left = left
+        self.operator = operator
+        self.right = right
+    
+    def __str__(self):
+        return f"Binary({self.left}, {self.operator}, {self.right})"
+    
+    def accept(self, visitor):
+        return visitor.visitBinary(self)
+
+
 # Parser (asi se zastřelim)
+
 
 class Parser():
     def __init__(self, tokens):
@@ -198,7 +234,7 @@ class Parser():
         while self.match("PLUS", "MINUS"):
             op = self.previous()
             right = self.factor()
-            expr = ("binary", expr, op, right)
+            expr = Binary(expr, op[0], right)
         return expr
 
     def factor(self): # factor -> primary ( ( "/" | "*" ) primary )* ;
@@ -206,31 +242,76 @@ class Parser():
         while self.match("STAR", "SLASH"):
             op = self.previous()
             right = self.primary()
-            expr = ("binary", expr, op, right)
+            expr = Binary(expr, op[0], right)
         return expr
 
     def primary(self): # primary -> NUMBER | STRING | "true" | "false" | "null" | "(" expression ")" ;
-        if self.match("STRING"):
-            return ("string", self.previous()[1])
-    
-        elif self.match("NUMBER"):
-            return ("number", int(self.previous()[1]))
+        if self.match("NUMBER") or self.match("STRING"):
+            return Literal(int(self.previous()[1]))
 
         elif self.match("L_PARENS"):
             expr = self.expression()
             self.expect("R_PARENS", "Missing \")\" after expression.")
-            return ("grouping", expr)
+            return Group(expr)
         
         self.error(self.peek(), "Missing expression")
-        
-        # error handling here
     
     def parse(self):    # Hlavní funkce
         return self.expression()
 
+
+# Interpreter
+
+
+class Interpreter():
+    def __init__(self):
+        pass
+
+    def evaluate(self, expr):       # Přesune nás zase na interpretu visitor
+        return expr.accept(self)
+
+    def visitLiteral(self, expr):   # Čísla, řetězce, booleany
+        return expr.val
+
+    def visitGroup(self, expr):     # ( )
+        return self.evaluate(expr.expression)
+
+    def visitBinary(self, expr):       # Binární operace
+        left = self.evaluate(expr.left)
+        right = self.evaluate(expr.right)
+
+        match expr.operator:
+            case "PLUS":
+                if isinstance(left, float) and isinstance(right, float):  # Sčítání čísel
+                    return float(left + right)
+                elif isinstance(left, str) and isinstance(right, str):  # Sčítání řetězců
+                    return str(left + right)
+
+                # error check here
+
+            case "MINUS":
+                # error check here
+                return float(left - right)
+
+            case "STAR":
+                # error check here
+                return float(left * right)
+            
+            case "SLASH":
+                # error check here
+                return float(left / right)
+    
+    def interpret(self, expression):
+        value = self.evaluate(expression)
+        print(value)
+
+
+
 # Hl. loop
 
+
 if __name__ == "__main__":
+
     lexer = Lexer(user_code)
     lexer_out = (lexer.gettokens())
     print(lexer_out)
@@ -238,3 +319,6 @@ if __name__ == "__main__":
     parser = Parser(lexer_out)
     parser_out = parser.parse()
     print(parser_out)
+
+    interpreter = Interpreter()
+    interpreter.interpret(parser_out)

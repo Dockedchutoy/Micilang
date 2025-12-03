@@ -1,1 +1,1 @@
-write("Ahoj Světe!");
+printl "Ahoj Světe!";
