@@ -19,7 +19,7 @@ Komentáře jsou interpreterem zcela ignorovány.
 
 Je pouze pár typů dát s rozdílnými úrovněmi funkcionality:
 
-+ <code>int</code> - Integer - Prosté celé číslo. neznačí se ničím
++ <code>num</code> - Number - Prosté číslo, může být desetinné. Neznačí se ničím.
 + <code>str</code> - String - Text. Značí se ". Ne apostrofy. Hmmm co kdybyh použil české apostrofy to by bylo vtipne
 + <code>bool</code> - Boolean - Buďto <code>false</code> (0) nebo <code>true</code> (1).
 + <code>null</code> - Null - Prázdná hodnota. V mat. a text. operacích ignorováno.
@@ -32,8 +32,8 @@ Ještě chyby spojené obecně s datatypy:
  
 Zde je výběr Micilang funkcí a statementů:
 
-+ <code>write(*output*)</code> - Vypíše na obrazovku *output*
-+ <code>var *x* = *value*</code> - Vytvoří proměnnou *x*, která má *value*
++ <code>write *output*;</code> - Vypíše na obrazovku *output*
++ <code>var *x* = *value*;</code> - Vytvoří proměnnou *x*, která má *value*
 + <code></code>
 
 Následující funkce nejsou součástí specifikace Micilangu. Nejsou tedy nedílnou součástí jazyku, a spíš jsou věci pro testování:
