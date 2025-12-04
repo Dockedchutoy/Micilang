@@ -9,13 +9,13 @@ TODO:
     ehm ehm jo
 """
 
-from sys import argv
+import sys
 
 # Získání kódu
 
 user_code = 'var x = 1 * 2 + 6 / 2; // 5\nprintl x;'      # Tady půjde Micilang kód. Soubory a shell vymyslím později.
 
-user_code = "printl 1 * 2 + (6 / 2); // 5"
+user_code = 'printl 1 * 2 + (6 / 2); // 5'
 
 # Error reporting
 
@@ -68,29 +68,25 @@ class Lexer():
                     self.cur += 1
                 if self.chars.upper() in self.KEYWORDS:
                     self.tokens.append((self.chars.upper(), self.chars))
-                    print(self.tokens)
                 else:
                     self.tokens.append(("IDENTIFIER", self.chars))
-                    print(self.tokens)
         
             elif self.code[self.cur].isnumeric():
                 while self.cur < len(self.code) and self.code[self.cur].isnumeric():
                     self.chars += self.code[self.cur]
                     self.cur += 1
-                self.tokens.append(("NUMBER", self.chars))
-                print(self.tokens)
+                self.tokens.append(("NUMBER", int(self.chars)))
             
             elif self.code[self.cur] == '"':        # Stringy
                 self.cur += 1
                 while self.cur < len(self.code) and self.code[self.cur] != '"':
                     self.chars += self.code[self.cur]
                     self.cur += 1
+                self.cur += 1
                 self.tokens.append(("STRING", self.chars))
-                print(self.tokens)
     
             elif self.code[self.cur] == ";":          # Konec statementu
                 self.tokens.append(("SEMICOLON", ";"))
-                print(self.tokens)
                 self.cur += 1
             
             elif self.code[self.cur] == "/":         # Komentáře / Děleno
@@ -99,32 +95,26 @@ class Lexer():
                     while self.cur < len(self.code) and self.code[self.cur] != "\n": self.cur += 1
                 else: #NEZAPOMENOUT TO UDĚLAT I PRO /// !!!!!!
                     self.tokens.append(("SLASH", "/"))
-                    print(self.tokens)
                     self.cur += 1
             
             elif self.code[self.cur] == "*":
                 self.tokens.append(("STAR", "*"))
-                print(self.tokens)
                 self.cur += 1
     
             elif self.code[self.cur] == "=":
                 self.tokens.append(("EQUAL", "="))
-                print(self.tokens)
                 self.cur += 1
             
             elif self.code[self.cur] == "+":
                 self.tokens.append(("PLUS", "+"))
-                print(self.tokens)
                 self.cur += 1
         
             elif self.code[self.cur] == "(":
                 self.tokens.append(("L_PARENS", "("))
-                print(self.tokens)
                 self.cur += 1
 
             elif self.code[self.cur] == ")":
                 self.tokens.append(("R_PARENS", ")"))
-                print(self.tokens)
                 self.cur += 1
         
             elif self.code[self.cur] == " " or self.code[self.cur] == "\n":
@@ -271,7 +261,7 @@ class Parser():
         self.expect("SEMICOLON", "Missing semicolon after value")
         return Printl(value)
     
-    def expression(self): # expression -> term SEMICOLON;
+    def expression(self): # expression -> term;
         return self.term()
 
     def term(self): # term -> factor ( ( "-" | "+" ) factor )* ;
@@ -292,7 +282,7 @@ class Parser():
 
     def primary(self): # primary -> NUMBER | STRING | "true" | "false" | "null" | "(" expression ")" ;
         if self.match("NUMBER") or self.match("STRING"):
-            return Literal(int(self.previous()[1]))
+            return Literal(self.previous()[1])
 
         elif self.match("L_PARENS"):
             expr = self.expression()
@@ -401,6 +391,13 @@ class Interpreter():
 if __name__ == "__main__":
     hadError = False
     hadRuntimeError = False
+
+    try:
+        with open(sys.argv[1], encoding="utf_8") as f:  # Python asi nepoznává, co je kurva .mcl, tak musíme to donutit do utf-8. Kdyby byl encoding jinej, bylo by zle, ale... kdo by kurva nepoužíval utf-8??
+            user_code = f.read()
+    except IndexError as e:
+        print("Micilang Terminal Mode")
+
 
     lexer = Lexer(user_code)
     lexer_out = (lexer.gettokens())
