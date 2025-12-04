@@ -5,7 +5,7 @@ func fibonacci(n) {
 		c = a + b;
 		a = b;
 		b = c;
-		write b;
+		printl b;
 
 		i = i + 1;
 	};

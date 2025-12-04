@@ -9,22 +9,26 @@ TODO:
     ehm ehm jo
 """
 
+from sys import argv
+
 # Získání kódu
 
-user_code = 'var x = 1 * 2 + 6 / 2; // This is a comment\nprintl x;'      # Tady půjde Micilang kód. Soubory a shell vymyslím později.
+user_code = 'var x = 1 * 2 + 6 / 2; // 5\nprintl x;'      # Tady půjde Micilang kód. Soubory a shell vymyslím později.
 
-user_code = "1 * 2 + (6 / 2); // 5"
+user_code = "printl 1 * 2 + (6 / 2); // 5"
 
 # Error reporting
-
-hadError = False
 
 def error(position, message):
     report(position, "", message)
 
 def report(position, item, message):
-    print(f"[{position}] Error{item}: {message}")
+    print(f"[{position}] Error {item}: {message}")
     hadError = True
+
+def runtimeError(error):
+    print(f"[{error.token}] {error.message}")
+    hadRuntimeError = True
 
 
 # Lexer
@@ -35,7 +39,7 @@ class Lexer():
 
         self.code = code
 
-        self.KEYWORDS = ["VAR!", "PRINTL!", "IF!", "ELSEIF!", "ELSE!", "FUNC!", "WHILE!"         # Statementy
+        self.KEYWORDS = ["VAR", "PRINTL", "IF!", "ELSEIF!", "ELSE!", "FUNC!", "WHILE!"         # Statementy
                 "INPUT!", "NUM!"        # Funkce
                 "TRUE!", "FALSE!", "NULL!"]                       # Další speciální
 
@@ -54,6 +58,8 @@ class Lexer():
 
     def gettokens(self):  # Pravý lexer
 
+        # Token: (Name, Object, Line)
+
         while self.cur < len(self.code):
     
             if self.code[self.cur].isalpha():         # Keywordy a identifikátory
@@ -61,7 +67,7 @@ class Lexer():
                     self.chars += self.code[self.cur]
                     self.cur += 1
                 if self.chars.upper() in self.KEYWORDS:
-                    self.tokens.append((self.chars.upper(), None))
+                    self.tokens.append((self.chars.upper(), self.chars))
                     print(self.tokens)
                 else:
                     self.tokens.append(("IDENTIFIER", self.chars))
@@ -172,9 +178,34 @@ class Binary(Expr):
     def accept(self, visitor):
         return visitor.visitBinary(self)
 
+class Stmt():
+    pass
+
+class Expression(Stmt):
+    def __init__(self, expression):
+        self.expression = expression
+    
+    def __str__(self):
+        return f"Expression({self.expression})"
+
+    def accept(self, visitor):
+        return visitor.visitExpression(self)
+
+class Printl(Stmt):
+    def __init__(self, expression):
+        self.expression = expression
+    
+    def __str__(self):
+        return f"Printl({self.expression})"
+
+    def accept(self, visitor):
+        return visitor.visitPrintl(self)
+
 
 # Parser (asi se zastřelim)
 
+
+class CParserError(RuntimeError): pass
 
 class Parser():
     def __init__(self, tokens):
@@ -183,6 +214,7 @@ class Parser():
     
     def error(self, token, message):
         error(token, message)
+        return CParserError
     
     def sync(self):
         self.advance()
@@ -224,10 +256,23 @@ class Parser():
         
         self.error(self.peek(), message)
     
+    def statement(self): # statement -> expressionStmt | printlStmt;
+        if self.match("PRINTL"):
+            return self.printlStmt()
+        return self.expressionStmt()
+    
+    def expressionStmt(self): # expressionStmt -> expression ";" ;
+        expr = self.expression()
+        self.expect("SEMICOLON", "Missing semicolon after expression")
+        return Expression(expr)
+    
+    def printlStmt(self): # printlStmt -> "printl" expression ";" ;
+        value = self.expression()
+        self.expect("SEMICOLON", "Missing semicolon after value")
+        return Printl(value)
+    
     def expression(self): # expression -> term SEMICOLON;
         return self.term()
-    
-        # semicolons later for statements
 
     def term(self): # term -> factor ( ( "-" | "+" ) factor )* ;
         expr = self.factor()
@@ -257,19 +302,59 @@ class Parser():
         self.error(self.peek(), "Missing expression")
     
     def parse(self):    # Hlavní funkce
-        return self.expression()
+        try:
+            program = []
+
+            while self.peek()[0] != "EOF":
+                program.append(self.statement())
+
+            return program
+        
+        except CParserError as e:
+            return e
 
 
 # Interpreter
+
+class CRuntimeError(RuntimeError):
+    def __init__(self, token, message, *args):
+        self.message = message
+        self.token = token
+        super().__init__(*args)
 
 
 class Interpreter():
     def __init__(self):
         pass
 
+    def checkNumOp(self, operator, operand):
+        if isinstance(operand, float):
+            return None
+        raise CRuntimeError(operator, "Invalid operand type.")
+    
+    def checkNumOps(self, left, operator, right):
+        if isinstance(left, float) and isinstance(right, float):
+            return None
+        raise CRuntimeError(operator, "Invalid operands type.")
+
     def evaluate(self, expr):       # Přesune nás zase na interpretu visitor
         return expr.accept(self)
 
+    def execute(self, stmt):
+        return stmt.accept(self)
+
+    # Statement visitors
+
+    def visitExpression(self, stmt):    # já nevim
+        self.evaluate(stmt.expression)
+        return None
+
+    def visitPrintl(self, stmt):    # Příkaz printl
+        value = self.evaluate(stmt.expression)
+        print(value)
+    
+    # Expression visitors
+    
     def visitLiteral(self, expr):   # Čísla, řetězce, booleany
         return expr.val
 
@@ -301,9 +386,12 @@ class Interpreter():
                 # error check here
                 return float(left / right)
     
-    def interpret(self, expression):
-        value = self.evaluate(expression)
-        print(value)
+    def interpret(self, program):
+        try:
+            for statement in program:
+                self.execute(statement)
+        except CRuntimeError as e:
+            runtimeError(e)
 
 
 
@@ -311,14 +399,16 @@ class Interpreter():
 
 
 if __name__ == "__main__":
+    hadError = False
+    hadRuntimeError = False
 
     lexer = Lexer(user_code)
     lexer_out = (lexer.gettokens())
-    print(lexer_out)
+    print("LEXER OUTPUT: " + str(lexer_out))
 
     parser = Parser(lexer_out)
     parser_out = parser.parse()
-    print(parser_out)
+    print("PARSER OUTPUT: " + str(parser_out))
 
     interpreter = Interpreter()
     interpreter.interpret(parser_out)
