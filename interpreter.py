@@ -39,9 +39,9 @@ class Lexer():
 
         self.code = code
 
-        self.KEYWORDS = ["VAR", "PRINTL", "IF!", "ELSEIF!", "ELSE!", "FUNC!", "WHILE!"         # Statementy
-                "INPUT!", "NUM!"        # Funkce
-                "TRUE!", "FALSE!", "NULL!"]                       # Další speciální
+        self.KEYWORDS = ["VAR", "PRINTL", "IF!", "ELSEIF!", "ELSE!", "FUNC!", "WHILE!",         # Statementy
+                "INPUT!", "NUM!",        # Funkce
+                "TRUE", "FALSE", "NULL"]                       # Další speciální
 
         self.tokens = [] # Veškeré tokeny
         self.chars = "" # momentální paměť
@@ -141,6 +141,8 @@ class Literal(Expr):
         self.val = val
     
     def __str__(self):
+        if self.val == None:
+            return "null"
         return f"{self.val}"
 
     def accept(self, visitor):
@@ -283,6 +285,13 @@ class Parser():
     def primary(self): # primary -> NUMBER | STRING | "true" | "false" | "null" | "(" expression ")" ;
         if self.match("NUMBER") or self.match("STRING"):
             return Literal(self.previous()[1])
+        
+        elif self.match("TRUE"):
+            return Literal(True)
+        elif self.match("FALSE"):
+            return Literal(False)
+        elif self.match("NULL"):
+            return Literal(None)
 
         elif self.match("L_PARENS"):
             expr = self.expression()
@@ -341,7 +350,15 @@ class Interpreter():
 
     def visitPrintl(self, stmt):    # Příkaz printl
         value = self.evaluate(stmt.expression)
-        print(value)
+        
+        if value == None:
+            print("null")
+        elif value == True:
+            print("true")
+        elif value == False:
+            print("false")
+        else:
+            print(value)
     
     # Expression visitors
     
