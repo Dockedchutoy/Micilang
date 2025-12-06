@@ -15,7 +15,7 @@ import sys
 
 user_code = 'var x = 1 * 2 + 6 / 2; // 5\nprintl x;'      # Tady půjde Micilang kód. Soubory a shell vymyslím později.
 
-user_code = 'printl 1 * 2 + (6 / 2); // 5'
+user_code = 'var x = 2; var y = 2; printl x + y;'
 
 # Error reporting
 
@@ -136,19 +136,23 @@ class Lexer():
 class Expr():
     pass
 
-class Literal(Expr):
+class Literal(Expr):    # val
     def __init__(self, val):
         self.val = val
     
     def __str__(self):
         if self.val == None:
             return "null"
+        elif self.val == True:
+            return "true"
+        elif self.val == True:
+            return "false"
         return f"{self.val}"
 
     def accept(self, visitor):
         return visitor.visitLiteral(self)
 
-class Group(Expr):
+class Group(Expr):      # (expression)
     def __init__(self, expression):
         self.expression = expression
     
@@ -158,7 +162,7 @@ class Group(Expr):
     def accept(self, visitor):
         return visitor.visitGroup(self)
 
-class Binary(Expr):
+class Binary(Expr):     # left operator right
     def __init__(self, left, operator, right):
         self.left = left
         self.operator = operator
@@ -170,10 +174,31 @@ class Binary(Expr):
     def accept(self, visitor):
         return visitor.visitBinary(self)
 
+class Variable(Expr):     # Printl expression;
+    def __init__(self, name):
+        self.name = name
+    
+    def __str__(self):
+        return f"Variable({self.name})"
+
+    def accept(self, visitor):
+        return visitor.visitVariable(self)
+
+class Assign(Expr):
+    def __init__(self, name, val):
+        self.name = name
+        self.val = val
+    
+    def __str__(self):
+        return f"Assign_{self.name}({self.val})"
+
+    def accept(self, visitor):
+        return visitor.visitAssign(self)
+
 class Stmt():
     pass
 
-class Expression(Stmt):
+class Expression(Stmt):     # expression
     def __init__(self, expression):
         self.expression = expression
     
@@ -183,7 +208,7 @@ class Expression(Stmt):
     def accept(self, visitor):
         return visitor.visitExpression(self)
 
-class Printl(Stmt):
+class Printl(Stmt):     # Printl expression;
     def __init__(self, expression):
         self.expression = expression
     
@@ -192,6 +217,17 @@ class Printl(Stmt):
 
     def accept(self, visitor):
         return visitor.visitPrintl(self)
+    
+class Var(Stmt):     # Printl expression;
+    def __init__(self, name, ini):
+        self.name = name
+        self.ini = ini
+    
+    def __str__(self):
+        return f"Var_{self.name}({self.ini})"
+
+    def accept(self, visitor):
+        return visitor.visitVar(self)
 
 
 # Parser (asi se zastřelim)
@@ -248,7 +284,25 @@ class Parser():
         
         self.error(self.peek(), message)
     
-    def statement(self): # statement -> expressionStmt | printlStmt;
+    def declaration(self):  # declaration -> varDeclaration | statement
+        try:
+            if self.match("VAR"):
+                return self.varDeclaration()
+            return self.statement()
+        except CParserError as e:
+            print("o shit")
+            self.sync()
+            return None
+        
+    def varDeclaration(self): # varDeclaration -> "var" IDENTIFIER ( "=" expression )? ";" ;
+        name = self.expect("IDENTIFIER", "Missing variable name")
+        ini = None
+        if self.match("EQUAL"):
+            ini = self.expression()
+        self.expect("SEMICOLON", "Missing semicolon after declaration")
+        return Var(name, ini)
+    
+    def statement(self): # statement -> expressionStmt | printlStmt ;
         if self.match("PRINTL"):
             return self.printlStmt()
         return self.expressionStmt()
@@ -263,8 +317,20 @@ class Parser():
         self.expect("SEMICOLON", "Missing semicolon after value")
         return Printl(value)
     
-    def expression(self): # expression -> term;
-        return self.term()
+    def expression(self): # expression -> assignment;
+        return self.assignment()
+    
+    def assignment(self):
+        expr = self.equality()
+        if self.match("EQUAL"):
+            equals = self.previous()
+            val = self.assignment()
+
+            if isinstance(expr, Variable):
+                name = expr.name
+                return Assign(name, val)
+            self.error(equals, "Invalid target assignment")
+        return expr
 
     def term(self): # term -> factor ( ( "-" | "+" ) factor )* ;
         expr = self.factor()
@@ -282,7 +348,7 @@ class Parser():
             expr = Binary(expr, op[0], right)
         return expr
 
-    def primary(self): # primary -> NUMBER | STRING | "true" | "false" | "null" | "(" expression ")" ;
+    def primary(self): # primary -> NUMBER | STRING | "true" | "false" | "null" | "(" expression ")" | IDENTIFIER ;
         if self.match("NUMBER") or self.match("STRING"):
             return Literal(self.previous()[1])
         
@@ -298,6 +364,9 @@ class Parser():
             self.expect("R_PARENS", "Missing \")\" after expression.")
             return Group(expr)
         
+        elif self.match("IDENTIFIER"):
+            return Variable(self.previous())
+        
         self.error(self.peek(), "Missing expression")
     
     def parse(self):    # Hlavní funkce
@@ -305,7 +374,7 @@ class Parser():
             program = []
 
             while self.peek()[0] != "EOF":
-                program.append(self.statement())
+                program.append(self.declaration())
 
             return program
         
@@ -313,7 +382,32 @@ class Parser():
             return e
 
 
+# Environment (pro interpretík :3)
+
+
+class Environment():
+    def __init__(self):
+        self.vals = {} 
+    
+    def create(self, name, val):
+        self.vals[name] = val
+    
+    def retrieve(self, name):
+        if name[1] in self.vals:
+            return self.vals[name[1]]
+        
+        raise CRuntimeError(name, f"Undefined variable \"{name[1]}\"")
+    
+    def assign(self, name, val):
+        if name[1] in self.vals:
+            self.vals[name] = val
+            return
+        
+        raise CRuntimeError(name, f"Undefined variable {name[1]}")
+
+
 # Interpreter
+
 
 class CRuntimeError(RuntimeError):
     def __init__(self, token, message, *args):
@@ -324,7 +418,7 @@ class CRuntimeError(RuntimeError):
 
 class Interpreter():
     def __init__(self):
-        pass
+        self.env = Environment()
 
     def checkNumOp(self, operator, operand):
         if isinstance(operand, float):
@@ -360,6 +454,13 @@ class Interpreter():
         else:
             print(value)
     
+    def visitVar(self, stmt):   # příkaz var
+        val = None
+        if not stmt.ini == None:
+            val = self.evaluate(stmt.ini)
+        self.env.create(stmt.name[1], val)
+        return None
+    
     # Expression visitors
     
     def visitLiteral(self, expr):   # Čísla, řetězce, booleany
@@ -374,7 +475,7 @@ class Interpreter():
 
         match expr.operator:
             case "PLUS":
-                if isinstance(left, float) and isinstance(right, float):  # Sčítání čísel
+                if isinstance(left, float) and isinstance(right, float) or isinstance(left, int) and isinstance(right, int):  # Sčítání čísel.
                     return float(left + right)
                 elif isinstance(left, str) and isinstance(right, str):  # Sčítání řetězců
                     return str(left + right)
@@ -393,13 +494,22 @@ class Interpreter():
                 # error check here
                 return float(left / right)
     
+    def visitVariable(self, expr):
+        return self.env.retrieve(expr.name)
+    
+    def visitAssign(self, expr):
+        val = self.evaluate(expr.val)
+        self.env.assign(expr.name, val)
+        return val
+    
+    # Interpretting function
+    
     def interpret(self, program):
         try:
             for statement in program:
                 self.execute(statement)
         except CRuntimeError as e:
             runtimeError(e)
-
 
 
 # Hl. loop
@@ -410,6 +520,7 @@ if __name__ == "__main__":
     hadRuntimeError = False
 
     try:
+        if not sys.argv[1].endswith(".mcl"): print("Warning: File does not have Micilang file extension.")
         with open(sys.argv[1], encoding="utf_8") as f:  # Python asi nepoznává, co je kurva .mcl, tak musíme to donutit do utf-8. Kdyby byl encoding jinej, bylo by zle, ale... kdo by kurva nepoužíval utf-8??
             user_code = f.read()
     except IndexError as e:
