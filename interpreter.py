@@ -386,8 +386,9 @@ class Parser():
 
 
 class Environment():
-    def __init__(self):
+    def __init__(self, enclosing=None):
         self.vals = {} 
+        self.enclosing = enclosing
     
     def create(self, name, val):
         self.vals[name] = val
@@ -395,6 +396,9 @@ class Environment():
     def retrieve(self, name):
         if name[1] in self.vals:
             return self.vals[name[1]]
+
+        if not self.enclosing == None:
+                return self.enclosing.retrieve(name)
         
         raise CRuntimeError(name, f"Undefined variable \"{name[1]}\"")
     
@@ -402,6 +406,10 @@ class Environment():
         if name[1] in self.vals:
             self.vals[name] = val
             return
+
+        if not self.enclosing == None:
+                self.enclosing.assign(name, val)
+                return
         
         raise CRuntimeError(name, f"Undefined variable {name[1]}")
 
