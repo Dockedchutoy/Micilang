@@ -102,8 +102,12 @@ class Lexer():
                 self.cur += 1
     
             elif self.code[self.cur] == "=":
-                self.tokens.append(("EQUAL", "="))
-                self.cur += 1
+                if self.peek(1) == "=":
+                    self.cur += 2
+                    self.tokens.append(("EQUAL_EQUAL", "=="))
+                else:
+                    self.tokens.append(("EQUAL", "="))
+                    self.cur += 1
             
             elif self.code[self.cur] == "+":
                 self.tokens.append(("PLUS", "+"))
@@ -115,6 +119,14 @@ class Lexer():
 
             elif self.code[self.cur] == ")":
                 self.tokens.append(("R_PARENS", ")"))
+                self.cur += 1
+            
+            elif self.code[self.cur] == "{":
+                self.tokens.append(("L_BRACE", "{"))
+                self.cur += 1
+
+            elif self.code[self.cur] == "}":
+                self.tokens.append(("R_BRACE", "}"))
                 self.cur += 1
         
             elif self.code[self.cur] == " " or self.code[self.cur] == "\n":
@@ -218,7 +230,7 @@ class Printl(Stmt):     # Printl expression;
     def accept(self, visitor):
         return visitor.visitPrintl(self)
     
-class Var(Stmt):     # Printl expression;
+class Var(Stmt):     # variable declaration expression;
     def __init__(self, name, ini):
         self.name = name
         self.ini = ini
@@ -228,6 +240,16 @@ class Var(Stmt):     # Printl expression;
 
     def accept(self, visitor):
         return visitor.visitVar(self)
+
+class Block(Stmt):     # block of code;
+    def __init__(self, stmts):
+        self.stmts = stmts
+    
+    def __str__(self):
+        return f"Block({self.stmts})"
+
+    def accept(self, visitor):
+        return visitor.visitBlock(self)
 
 
 # Parser (asi se zastřelim)
@@ -283,6 +305,8 @@ class Parser():
             return self.advance()
         
         self.error(self.peek(), message)
+
+    # real shit
     
     def declaration(self):  # declaration -> varDeclaration | statement
         try:
@@ -305,6 +329,8 @@ class Parser():
     def statement(self): # statement -> expressionStmt | printlStmt ;
         if self.match("PRINTL"):
             return self.printlStmt()
+        elif self.match("L_BRACE"):
+            return Block(self.block())
         return self.expressionStmt()
     
     def expressionStmt(self): # expressionStmt -> expression ";" ;
@@ -317,11 +343,18 @@ class Parser():
         self.expect("SEMICOLON", "Missing semicolon after value")
         return Printl(value)
     
+    def block(self):
+        statements = []
+        while not self.check("R_BRACE") and self.peek()[0] != "EOF":
+            statements.append(self.declaration())
+        self.expect("R_BRACE", "Missing \"}\" after block")
+        return statements
+    
     def expression(self): # expression -> assignment;
         return self.assignment()
     
     def assignment(self):
-        expr = self.equality()
+        expr = self.term()
         if self.match("EQUAL"):
             equals = self.previous()
             val = self.assignment()
@@ -369,7 +402,9 @@ class Parser():
         
         self.error(self.peek(), "Missing expression")
     
-    def parse(self):    # Hlavní funkce
+    # Hlavní funkce
+    
+    def parse(self):
         try:
             program = []
 
@@ -455,9 +490,9 @@ class Interpreter():
         
         if value == None:
             print("null")
-        elif value == True:
+        elif value == True and isinstance(value, bool):
             print("true")
-        elif value == False:
+        elif value == False and isinstance(value, bool):
             print("false")
         else:
             print(value)
@@ -468,6 +503,20 @@ class Interpreter():
             val = self.evaluate(stmt.ini)
         self.env.create(stmt.name[1], val)
         return None
+    
+    def visitBlock(self, stmt):
+        self.execBlock(stmt.stmts, Environment(self.env))
+        return None
+    
+    def execBlock(self, stmts, env):
+        previous = self.env
+        try:
+            self.env = env
+
+            for stmt in stmts:
+                self.execute(stmt)
+        finally:
+            self.env = previous
     
     # Expression visitors
     
