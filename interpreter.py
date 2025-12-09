@@ -17,6 +17,8 @@ user_code = 'var x = 1 * 2 + 6 / 2; // 5\nprintl x;'      # Tady půjde Micilang
 
 user_code = 'var x = 2; var y = 2; printl x + y;'
 
+user_code = "var x = true; printl x;"
+
 # Error reporting
 
 def error(position, message):
@@ -109,8 +111,36 @@ class Lexer():
                     self.tokens.append(("EQUAL", "="))
                     self.cur += 1
             
+            elif self.code[self.cur] == "!":
+                if self.peek(1) == "=":
+                    self.cur += 2
+                    self.tokens.append(("EXCL_EQUAL", "!="))
+                else:
+                    self.tokens.append(("EXCL", "!"))
+                    self.cur += 1
+            
+            elif self.code[self.cur] == ">":
+                if self.peek(1) == "=":
+                    self.cur += 2
+                    self.tokens.append(("GREAT_EQUAL", ">="))
+                else:
+                    self.tokens.append(("GREAT", ">"))
+                    self.cur += 1
+            
+            elif self.code[self.cur] == "<":
+                if self.peek(1) == "=":
+                    self.cur += 2
+                    self.tokens.append(("LESS_EQUAL", "<="))
+                else:
+                    self.tokens.append(("LESS", "<"))
+                    self.cur += 1
+            
             elif self.code[self.cur] == "+":
                 self.tokens.append(("PLUS", "+"))
+                self.cur += 1
+            
+            elif self.code[self.cur] == "-":
+                self.tokens.append(("MINUS", "-"))
                 self.cur += 1
         
             elif self.code[self.cur] == "(":
@@ -185,6 +215,17 @@ class Binary(Expr):     # left operator right
     
     def accept(self, visitor):
         return visitor.visitBinary(self)
+
+class Unary(Expr):     # operator right
+    def __init__(self, operator, right):
+        self.operator = operator
+        self.right = right
+    
+    def __str__(self):
+        return f"Unary({self.operator}, {self.right})"
+    
+    def accept(self, visitor):
+        return visitor.visitUnary(self)
 
 class Variable(Expr):     # Printl expression;
     def __init__(self, name):
@@ -354,7 +395,7 @@ class Parser():
         return self.assignment()
     
     def assignment(self):
-        expr = self.term()
+        expr = self.equality()
         if self.match("EQUAL"):
             equals = self.previous()
             val = self.assignment()
@@ -363,6 +404,22 @@ class Parser():
                 name = expr.name
                 return Assign(name, val)
             self.error(equals, "Invalid target assignment")
+        return expr
+    
+    def equality(self):
+        expr = self.comparison()
+        while self.match("EXCL_EQUAL", "EQUAL_EQUAL"):
+            op = self.previous()
+            right = self.comparison()
+            expr = Binary(expr, op[0], right)
+        return expr
+
+    def comparison(self):
+        expr = self.term()
+        while self.match("GREAT", "GREAT_EQUAL", "LESS", "LESS_EQUAL"):
+            op = self.previous()
+            right = self.term()
+            expr = Binary(expr, op[0], right)
         return expr
 
     def term(self): # term -> factor ( ( "-" | "+" ) factor )* ;
@@ -380,8 +437,14 @@ class Parser():
             right = self.primary()
             expr = Binary(expr, op[0], right)
         return expr
+    
+    def unary(self):
+        if self.match("EXCL", "MINUS"):
+            op = self.previous()
+            right = self.unary()
+            return Unary(op, right)
 
-    def primary(self): # primary -> NUMBER | STRING | "true" | "false" | "null" | "(" expression ")" | IDENTIFIER ;
+    def primary(self): # primary -> NUMBER | STRING | "true" | "false" | "null" | "(" expression ")" | IDENTIFIER ; 
         if self.match("NUMBER") or self.match("STRING"):
             return Literal(self.previous()[1])
         
@@ -479,6 +542,24 @@ class Interpreter():
     def execute(self, stmt):
         return stmt.accept(self)
 
+    def isTrue(self, object):
+        if object == None:
+            return False
+        elif isinstance(object, bool):
+            return bool(object)
+        elif object == "":
+            return False
+        elif object < 1:
+            return False
+        return True
+    
+    def isEqual(self, left, right):
+        if left == None and right == None:
+            return True
+        elif left == None:
+            return False
+        return left == right
+
     # Statement visitors
 
     def visitExpression(self, stmt):    # já nevim
@@ -525,6 +606,17 @@ class Interpreter():
 
     def visitGroup(self, expr):     # ( )
         return self.evaluate(expr.expression)
+    
+    def visitUnary(self, expr):
+        right = self.evaluate(expr.right)
+
+        match self.operator:
+            case "MINUS":
+                return -float(right)
+            case "EXCL":
+                return not self.isTrue(right)
+            
+        return None
 
     def visitBinary(self, expr):       # Binární operace
         left = self.evaluate(expr.left)
@@ -537,7 +629,7 @@ class Interpreter():
                 elif isinstance(left, str) and isinstance(right, str):  # Sčítání řetězců
                     return str(left + right)
 
-                # error check here
+                # error check here. Tahle celá věc závisí na tom že budeš porovnávat čísla. Jinak se zastřel.
 
             case "MINUS":
                 # error check here
@@ -550,6 +642,24 @@ class Interpreter():
             case "SLASH":
                 # error check here
                 return float(left / right)
+            
+            case "GREAT":
+                return left > right
+            
+            case "GREAT_EQUAL":
+                return left >= right
+            
+            case "LESS":
+                return left < right
+            
+            case "LESS_EQUAL":
+                return left <= right
+            
+            case "EXCL_EQUAL":
+                return not self.isEqual(left, right)
+            
+            case "EQUAL_EQUAL":
+                return self.isEqual(left, right)
     
     def visitVariable(self, expr):
         return self.env.retrieve(expr.name)
