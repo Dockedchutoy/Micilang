@@ -10,14 +10,13 @@ TODO:
 """
 
 import sys
+from collections import deque
 
 # Získání kódu
 
 user_code = 'var x = 1 * 2 + 6 / 2; // 5\nprintl x;'      # Tady půjde Micilang kód. Soubory a shell vymyslím později.
 
 user_code = 'var x = 2; var y = 2; printl x + y;'
-
-user_code = "var x = true; printl x;"
 
 # Error reporting
 
@@ -41,9 +40,9 @@ class Lexer():
 
         self.code = code
 
-        self.KEYWORDS = ["VAR", "PRINTL", "IF!", "ELSEIF!", "ELSE!", "FUNC!", "WHILE!",         # Statementy
+        self.KEYWORDS = ["VAR", "PRINTL", "IF", "ELSEIF", "ELSE", "FUNC!", "WHILE!",         # Statementy
                 "INPUT!", "NUM!",        # Funkce
-                "TRUE", "FALSE", "NULL"]                       # Další speciální
+                "TRUE", "FALSE", "NULL", "AND", "OR"]                       # Další speciální
 
         self.tokens = [] # Veškeré tokeny
         self.chars = "" # momentální paměť
@@ -97,7 +96,7 @@ class Lexer():
                     while self.cur < len(self.code) and "///" not in self.chars:
                             self.chars += self.code[self.cur]
                             self.cur += 1
-                        self.cur += 1
+                    self.cur += 1
                 
                 elif self.peek(1) == "/":
                     self.cur += 2
@@ -193,9 +192,9 @@ class Literal(Expr):    # val
     def __str__(self):
         if self.val == None:
             return "null"
-        elif self.val == True:
+        elif self.val == True and isinstance(self.val, bool):
             return "true"
-        elif self.val == True:
+        elif self.val == False and isinstance(self.val, bool):
             return "false"
         return f"{self.val}"
 
@@ -211,6 +210,18 @@ class Group(Expr):      # (expression)
 
     def accept(self, visitor):
         return visitor.visitGroup(self)
+
+class Logical(Expr):      # and | or
+    def __init__(self, left, operator, right):
+        self.left = left
+        self.operator = operator
+        self.right = right
+    
+    def __str__(self):
+        return f"Logic({self.left}, {self.operator} , {self.right})"
+
+    def accept(self, visitor):
+        return visitor.visitLogical(self)
 
 class Binary(Expr):     # left operator right
     def __init__(self, left, operator, right):
@@ -269,6 +280,18 @@ class Expression(Stmt):     # expression
     def accept(self, visitor):
         return visitor.visitExpression(self)
 
+class If(Stmt):     # Printl expression;
+    def __init__(self, condition, thenBr, elseBr):
+        self.condition = condition
+        self.thenBr = thenBr
+        self.elseBr = elseBr
+    
+    def __str__(self):
+        return f"If {self.condition}:({self.thenBr}), else ({self.thenBr})"
+
+    def accept(self, visitor):
+        return visitor.visitIf(self)
+
 class Printl(Stmt):     # Printl expression;
     def __init__(self, expression):
         self.expression = expression
@@ -289,6 +312,17 @@ class Var(Stmt):     # variable declaration expression;
 
     def accept(self, visitor):
         return visitor.visitVar(self)
+    
+class While(Stmt):
+    def __init__(self, condition, body):
+        self.condition = condition
+        self.body = body
+    
+    def __str__(self):
+        return f"While {self.condition}({self.body})"
+
+    def accept(self, visitor):
+        return visitor.visitWhile(self)
 
 class Block(Stmt):     # block of code;
     def __init__(self, stmts):
@@ -332,7 +366,7 @@ class Parser():
     def previous(self): # Získá předchozí token
         return self.tokens[self.cur - 1]
     
-    def advance(self):  # Přesune se o další pozici
+    def advance(self):  # Přesune se o další pozici/na následující token
         if self.peek()[0] != "EOF":
             self.cur += 1
         return self.previous()
@@ -375,8 +409,12 @@ class Parser():
         self.expect("SEMICOLON", "Missing semicolon after declaration")
         return Var(name, ini)
     
-    def statement(self): # statement -> expressionStmt | printlStmt ;
-        if self.match("PRINTL"):
+    def statement(self): # statement -> expressionStmt | ifStmt | printlStmt | block ;
+        if self.match("IF"):
+            return self.ifStmt()
+        elif self.match("WHILE"):
+            return self.whileStmt()
+        elif self.match("PRINTL"):
             return self.printlStmt()
         elif self.match("L_BRACE"):
             return Block(self.block())
@@ -387,12 +425,31 @@ class Parser():
         self.expect("SEMICOLON", "Missing semicolon after expression")
         return Expression(expr)
     
+    def ifStmt(self): # ifStmt -> "if" expression block ("else" block)? ;
+        condition = self.expression()
+        self.expect("L_BRACE", "Missing \"{\" after if condition")
+        thenBr = self.block()
+
+        # IMPLEMENTOVAT ELSEIF
+
+        elseBr = None
+        if self.match("ELSE"):
+            self.expect("L_BRACE", "Missing \"{\" after else condition")
+            elseBr = self.block()
+        return If(condition, thenBr, elseBr)
+    
+    def whileStmt(self): # ifStmt -> "while" expression block ;
+        condition = self.expression()
+        self.expect("L_BRACE", "Missing \"{\" after while condition")
+        body = self.block
+        return While(condition, body)
+    
     def printlStmt(self): # printlStmt -> "printl" expression ";" ;
         value = self.expression()
         self.expect("SEMICOLON", "Missing semicolon after value")
         return Printl(value)
     
-    def block(self):
+    def block(self): # block -> "{" declaration* "}"
         statements = []
         while not self.check("R_BRACE") and self.peek()[0] != "EOF":
             statements.append(self.declaration())
@@ -403,7 +460,7 @@ class Parser():
         return self.assignment()
     
     def assignment(self):
-        expr = self.equality()
+        expr = self.logicOr()
         if self.match("EQUAL"):
             equals = self.previous()
             val = self.assignment()
@@ -412,6 +469,22 @@ class Parser():
                 name = expr.name
                 return Assign(name, val)
             self.error(equals, "Invalid target assignment")
+        return expr
+    
+    def logicOr(self):
+        expr = self.logicAnd()
+        while self.match("OR"):
+            op = self.previous()
+            right = self.logicAnd()
+            expr = Logical(expr, op, right)
+        return expr
+    
+    def logicAnd(self):
+        expr = self.equality()
+        while self.match("AND"):
+            op = self.previous()
+            right = self.equality()
+            expr = Logical(expr, op, right)
         return expr
     
     def equality(self):
@@ -573,6 +646,18 @@ class Interpreter():
     def visitExpression(self, stmt):    # já nevim
         self.evaluate(stmt.expression)
         return None
+    
+    def visitIf(self, stmt):
+        if self.isTrue(self.evaluate(stmt.condition)):
+            self.execute(stmt.thenBr)
+        elif stmt.elseBr != None:
+            self.execute(stmt.elseBr)
+        return None
+    
+    def visitWhile(self, stmt):
+        while self.isTrue(self.evaluate(stmt.condition)):
+            self.execute(stmt.body)
+        return None
 
     def visitPrintl(self, stmt):    # Příkaz printl
         value = self.evaluate(stmt.expression)
@@ -625,6 +710,17 @@ class Interpreter():
                 return not self.isTrue(right)
             
         return None
+    
+    def visitLogical(self, expr):
+        left = self.evaluate(expr.left)
+
+        if expr.operator == "OR":
+            if self.isTrue(left):
+                return left
+        else:
+            if not self.isTrue(self):
+                return left
+        return self.evaluate(expr.right)
 
     def visitBinary(self, expr):       # Binární operace
         left = self.evaluate(expr.left)
