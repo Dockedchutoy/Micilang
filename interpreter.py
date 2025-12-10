@@ -92,10 +92,18 @@ class Lexer():
                 self.cur += 1
             
             elif self.code[self.cur] == "/":         # Komentáře / Děleno
-                if self.peek(1) == "/":
+                if self.peek(2) == "//":
+                    self.cur += 3
+                    while self.cur < len(self.code) and "///" not in self.chars:
+                            self.chars += self.code[self.cur]
+                            self.cur += 1
+                        self.cur += 1
+                
+                elif self.peek(1) == "/":
                     self.cur += 2
                     while self.cur < len(self.code) and self.code[self.cur] != "\n": self.cur += 1
                 else: #NEZAPOMENOUT TO UDĚLAT I PRO /// !!!!!!
+                      # dw už to tam je
                     self.tokens.append(("SLASH", "/"))
                     self.cur += 1
             
