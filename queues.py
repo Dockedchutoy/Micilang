@@ -5,6 +5,17 @@ Poznámky:
 __getitem__ se nepoužívá, řeší se jen první v pořadí
 """
 
+from collections import deque
+
+tokens = deque([deque([20, 10]), deque([30, 40])])
+
+def token():
+    return tokens[0]
+
+print(token())
+token().popleft()
+print(token()[0])
+
 class Queue():
     def __init__(self, elements=None):
         self.content = []

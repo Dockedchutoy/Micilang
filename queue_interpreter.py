@@ -66,15 +66,15 @@ class Lexer():
                     self.chars += self.code[self.cur]
                     self.cur += 1
                 if self.chars.upper() in self.KEYWORDS:
-                    self.tokens.append((self.chars.upper(), self.chars))
+                    self.tokens.append(deque([self.chars.upper(), self.chars]))
                 else:
-                    self.tokens.append(("IDENTIFIER", self.chars))
+                    self.tokens.append(deque(["IDENTIFIER", self.chars]))
         
             elif self.code[self.cur].isnumeric():
                 while self.cur < len(self.code) and self.code[self.cur].isnumeric():
                     self.chars += self.code[self.cur]
                     self.cur += 1
-                self.tokens.append(("NUMBER", int(self.chars)))
+                self.tokens.append(deque(["NUMBER", int(self.chars)]))
             
             elif self.code[self.cur] == '"':        # Stringy
                 self.cur += 1
@@ -82,10 +82,10 @@ class Lexer():
                     self.chars += self.code[self.cur]
                     self.cur += 1
                 self.cur += 1
-                self.tokens.append(("STRING", self.chars))
+                self.tokens.append(deque(["STRING", self.chars]))
     
             elif self.code[self.cur] == ";":          # Konec statementu
-                self.tokens.append(("SEMICOLON", ";"))
+                self.tokens.append(deque(["SEMICOLON", ";"]))
                 self.cur += 1
             
             elif self.code[self.cur] == "/":         # Komentáře / Děleno         
@@ -95,67 +95,67 @@ class Lexer():
                         self.cur += 1
                     self.cur += 1
                 else:
-                    self.tokens.append(("SLASH", "/"))
+                    self.tokens.append(deque(["SLASH", "/"]))
                     self.cur += 1
             
             elif self.code[self.cur] == "*":
-                self.tokens.append(("STAR", "*"))
+                self.tokens.append(deque(["STAR", "*"]))
                 self.cur += 1
     
             elif self.code[self.cur] == "=":
                 if self.peek() == "=":
                     self.cur += 2
-                    self.tokens.append(("EQUAL_EQUAL", "=="))
+                    self.tokens.append(deque(["EQUAL_EQUAL", "=="]))
                 else:
-                    self.tokens.append(("EQUAL", "="))
+                    self.tokens.append(deque(["EQUAL", "="]))
                     self.cur += 1
             
             elif self.code[self.cur] == "!":
                 if self.peek() == "=":
                     self.cur += 2
-                    self.tokens.append(("EXCL_EQUAL", "!="))
+                    self.tokens.append(deque(["EXCL_EQUAL", "!="]))
                 else:
-                    self.tokens.append(("EXCL", "!"))
+                    self.tokens.append(deque(["EXCL", "!"]))
                     self.cur += 1
             
             elif self.code[self.cur] == ">":
                 if self.peek() == "=":
                     self.cur += 2
-                    self.tokens.append(("GREAT_EQUAL", ">="))
+                    self.tokens.append(deque(["GREAT_EQUAL", ">="]))
                 else:
-                    self.tokens.append(("GREAT", ">"))
+                    self.tokens.append(deque(["GREAT", ">"]))
                     self.cur += 1
             
             elif self.code[self.cur] == "<":
                 if self.peek() == "=":
                     self.cur += 2
-                    self.tokens.append(("LESS_EQUAL", "<="))
+                    self.tokens.append(deque(["LESS_EQUAL", "<="]))
                 else:
-                    self.tokens.append(("LESS", "<"))
+                    self.tokens.append(deque(["LESS", "<"]))
                     self.cur += 1
             
             elif self.code[self.cur] == "+":
-                self.tokens.append(("PLUS", "+"))
+                self.tokens.append(deque(["PLUS", "+"]))
                 self.cur += 1
             
             elif self.code[self.cur] == "-":
-                self.tokens.append(("MINUS", "-"))
+                self.tokens.append(deque(["MINUS", "-"]))
                 self.cur += 1
         
             elif self.code[self.cur] == "(":
-                self.tokens.append(("L_PARENS", "("))
+                self.tokens.append(deque(["L_PARENS", "("]))
                 self.cur += 1
 
             elif self.code[self.cur] == ")":
-                self.tokens.append(("R_PARENS", ")"))
+                self.tokens.append(deque(["R_PARENS", ")"]))
                 self.cur += 1
             
             elif self.code[self.cur] == "{":
-                self.tokens.append(("L_BRACE", "{"))
+                self.tokens.append(deque(["L_BRACE", "{"]))
                 self.cur += 1
 
             elif self.code[self.cur] == "}":
-                self.tokens.append(("R_BRACE", "}"))
+                self.tokens.append(deque(["R_BRACE", "}"]))
                 self.cur += 1
         
             elif self.code[self.cur] == " " or self.code[self.cur] == "\n":
@@ -166,7 +166,7 @@ class Lexer():
 
             self.chars = ""
     
-        self.tokens.append(("EOF", None))
+        self.tokens.append(deque(["EOF", None]))
         
         return self.tokens
     
@@ -178,20 +178,102 @@ class CParserError(RuntimeError): pass
 
 class Parser():
     def __init__(self, tokens):
-        self.tokens = tokens
-        self.cur = 0
+        self.tokens = tokens # Full list of tokens
     
     def error(self, token, message):
         error(token, message)
         return CParserError
+    
+    def peek(self):
+        return self.tokens[0][0]
+    
+    def check(self, type):  # Shoduje se další token s tím co chceme?
+        if self.peek() == "EOF": 
+            return False
+        return self.peek() == type
 
-    def parse(self):
-        program = deque()
+    def advance(self):  # Přesune se o další pozici/na následující token
+        self.tokens[0].popleft()
+        token = self.peek() # Kdyžtak by to mohlo být jen self.tokens[0]
+        if self.peek() != "EOF":
+            self.tokens.popleft()
+        return token
+    
+    def match(self, *types):     # Pokud je další token to co chceme, pokračujeme 
+        for type in types:
+            if self.check(type):
+                self.advance()
+                return True
+        return False
 
-        while not self.tokens[0][0] == "EOF":
-            program.append()
+    def expect(self, type, message):     # Pokud není další token to co chceme, máme problém
+        if self.check(type):
+            return self.advance()
         
-        return program
+        self.error(self.peek(), message)
+
+    # real shit
+    
+    def declaration(self):  # declaration -> varDeclaration | statement
+        try:
+            if self.match("VAR"):
+                return self.varDeclaration()
+            return self.statement()
+        except CParserError as e:
+            print("o shit")
+            self.sync()
+            return None
+        
+    def varDeclaration(self): # varDeclaration -> "var" IDENTIFIER ( "=" expression )? ";" ;
+        name = self.expect("IDENTIFIER", "Missing variable name")
+        ini = None
+        if self.match("EQUAL"):
+            ini = self.expression()
+        self.expect("SEMICOLON", "Missing semicolon after declaration")
+        return deque(["Var", name, ini])
+    
+    def statement(self): # statement -> expressionStmt | ifStmt | printlStmt | block ;
+        if self.match("IF"):
+            return self.ifStmt()
+        elif self.match("WHILE"):
+            return self.whileStmt()
+        elif self.match("PRINTL"):
+            return self.printlStmt()
+        elif self.match("L_BRACE"):
+            return deque(["Block", self.block()])
+        return self.expressionStmt()
+    
+    def expressionStmt(self): # expressionStmt -> expression ";" ;
+        expr = self.expression()
+        self.expect("SEMICOLON", "Missing semicolon after expression")
+        return deque(["ExpressionStmt", expr])
+    
+    def ifStmt(self): # ifStmt -> "if" expression block ("else" block)? ;
+        condition = self.expression()
+        self.expect("L_BRACE", "Missing \"{\" after if condition")
+        thenBr = self.block()
+
+        # IMPLEMENTOVAT ELSEIF
+
+        elseBr = None
+        if self.match("ELSE"):
+            self.expect("L_BRACE", "Missing \"{\" after else condition")
+            elseBr = self.block()
+        return deque(["If", condition, thenBr, elseBr])
+    
+    # Main parsing function
+    
+    def parse(self):
+        try:
+            program = deque()
+
+            while self.peek() != "EOF":
+                program.append(self.declaration())
+
+            return program
+        
+        except CParserError as e:
+            return e
 
 if __name__ == "__main__":
     hadError = False
