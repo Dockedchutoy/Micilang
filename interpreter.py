@@ -18,6 +18,8 @@ user_code = 'var x = 1 * 2 + 6 / 2; // 5\nprintl x;'      # Tady půjde Micilang
 
 user_code = 'var x = 2; var y = 2; printl x + y;'
 
+user_code = 'var x = 1; if x == 1 {while true {printl x;}} else {printl x;}'
+
 # Error reporting
 
 def error(position, message):
@@ -40,7 +42,7 @@ class Lexer():
 
         self.code = code
 
-        self.KEYWORDS = ["VAR", "PRINTL", "IF", "ELSEIF", "ELSE", "FUNC!", "WHILE!",         # Statementy
+        self.KEYWORDS = ["VAR", "PRINTL", "IF", "ELSEIF", "ELSE", "FUNC!", "WHILE",         # Statementy
                 "INPUT!", "NUM!",        # Funkce
                 "TRUE", "FALSE", "NULL", "AND", "OR"]                       # Další speciální
 
@@ -189,7 +191,7 @@ class Literal(Expr):    # val
     def __init__(self, val):
         self.val = val
     
-    def __str__(self):
+    def __repr__(self):
         if self.val == None:
             return "null"
         elif self.val == True and isinstance(self.val, bool):
@@ -205,7 +207,7 @@ class Group(Expr):      # (expression)
     def __init__(self, expression):
         self.expression = expression
     
-    def __str__(self):
+    def __repr__(self):
         return f"Group({self.expression})"
 
     def accept(self, visitor):
@@ -217,7 +219,7 @@ class Logical(Expr):      # and | or
         self.operator = operator
         self.right = right
     
-    def __str__(self):
+    def __repr__(self):
         return f"Logic({self.left}, {self.operator} , {self.right})"
 
     def accept(self, visitor):
@@ -229,7 +231,7 @@ class Binary(Expr):     # left operator right
         self.operator = operator
         self.right = right
     
-    def __str__(self):
+    def __repr__(self):
         return f"Binary({self.left}, {self.operator}, {self.right})"
     
     def accept(self, visitor):
@@ -240,7 +242,7 @@ class Unary(Expr):     # operator right
         self.operator = operator
         self.right = right
     
-    def __str__(self):
+    def __repr__(self):
         return f"Unary({self.operator}, {self.right})"
     
     def accept(self, visitor):
@@ -250,7 +252,7 @@ class Variable(Expr):     # Printl expression;
     def __init__(self, name):
         self.name = name
     
-    def __str__(self):
+    def __repr__(self):
         return f"Variable({self.name})"
 
     def accept(self, visitor):
@@ -261,7 +263,7 @@ class Assign(Expr):
         self.name = name
         self.val = val
     
-    def __str__(self):
+    def __repr__(self):
         return f"Assign_{self.name}({self.val})"
 
     def accept(self, visitor):
@@ -274,7 +276,7 @@ class Expression(Stmt):     # expression
     def __init__(self, expression):
         self.expression = expression
     
-    def __str__(self):
+    def __repr__(self):
         return f"Expression({self.expression})"
 
     def accept(self, visitor):
@@ -286,7 +288,7 @@ class If(Stmt):     # Printl expression;
         self.thenBr = thenBr
         self.elseBr = elseBr
     
-    def __str__(self):
+    def __repr__(self):
         return f"If {self.condition}:({self.thenBr}), else ({self.thenBr})"
 
     def accept(self, visitor):
@@ -296,7 +298,7 @@ class Printl(Stmt):     # Printl expression;
     def __init__(self, expression):
         self.expression = expression
     
-    def __str__(self):
+    def __repr__(self):
         return f"Printl({self.expression})"
 
     def accept(self, visitor):
@@ -307,7 +309,7 @@ class Var(Stmt):     # variable declaration expression;
         self.name = name
         self.ini = ini
     
-    def __str__(self):
+    def __repr__(self):
         return f"Var_{self.name}({self.ini})"
 
     def accept(self, visitor):
@@ -318,7 +320,7 @@ class While(Stmt):
         self.condition = condition
         self.body = body
     
-    def __str__(self):
+    def __repr__(self):
         return f"While {self.condition}({self.body})"
 
     def accept(self, visitor):
@@ -328,7 +330,7 @@ class Block(Stmt):     # block of code;
     def __init__(self, stmts):
         self.stmts = stmts
     
-    def __str__(self):
+    def __repr__(self):
         return f"Block({self.stmts})"
 
     def accept(self, visitor):
@@ -347,7 +349,7 @@ class Parser():
     
     def error(self, token, message):
         error(token, message)
-        return CParserError
+        raise CParserError
     
     def sync(self):
         self.advance()
@@ -441,7 +443,7 @@ class Parser():
     def whileStmt(self): # ifStmt -> "while" expression block ;
         condition = self.expression()
         self.expect("L_BRACE", "Missing \"{\" after while condition")
-        body = self.block
+        body = self.block()
         return While(condition, body)
     
     def printlStmt(self): # printlStmt -> "printl" expression ";" ;
@@ -649,14 +651,14 @@ class Interpreter():
     
     def visitIf(self, stmt):
         if self.isTrue(self.evaluate(stmt.condition)):
-            self.execute(stmt.thenBr)
+            self.execBlock(stmt.thenBr, Environment(self.env))
         elif stmt.elseBr != None:
-            self.execute(stmt.elseBr)
+            self.execBlock(stmt.elseBr, Environment(self.env))
         return None
     
     def visitWhile(self, stmt):
         while self.isTrue(self.evaluate(stmt.condition)):
-            self.execute(stmt.body)
+            self.execBlock(stmt.body, Environment(self.env))
         return None
 
     def visitPrintl(self, stmt):    # Příkaz printl
@@ -781,6 +783,8 @@ class Interpreter():
                 self.execute(statement)
         except CRuntimeError as e:
             runtimeError(e)
+        except KeyboardInterrupt:
+            print("EXECUTION INTERRUPTED BY USER")
 
 
 # Hl. loop
@@ -804,7 +808,7 @@ if __name__ == "__main__":
 
     parser = Parser(lexer_out)
     parser_out = parser.parse()
-    print("PARSER OUTPUT: " + str(parser_out))
+    print("PARSER OUTPUT: " + repr(parser_out))
 
     interpreter = Interpreter()
     interpreter.interpret(parser_out)

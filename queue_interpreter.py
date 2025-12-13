@@ -18,6 +18,8 @@ from collections import deque
 
 user_code = "var x = 1 * 2 + 6 / 2; // This is a comment //"
 
+user_code = "var x = 0; if x == 1 {while true {printl 1;}} if x == 0 {printl 0;}"
+
 def error(position, message):
     report(position, "", message)
 
@@ -179,6 +181,8 @@ class CParserError(RuntimeError): pass
 class Parser():
     def __init__(self, tokens):
         self.tokens = tokens # Full list of tokens
+
+        # Vrácené parser tokeny musí být ve specifickém pořadí. První element musí vždy být typ tokenu.
     
     def error(self, token, message):
         error(token, message)
@@ -199,14 +203,14 @@ class Parser():
             self.tokens.popleft()
         return token
     
-    def match(self, *types):     # Pokud je další token to co chceme, pokračujeme 
+    def match(self, *types):     # Pokud je další token to co chceme, pokračujeme na další pozici
         for type in types:
             if self.check(type):
                 self.advance()
                 return True
         return False
 
-    def expect(self, type, message):     # Pokud není další token to co chceme, máme problém
+    def expect(self, type, message):     # Pokud není další token to co chceme, máme problém. Jinak jdeme dál
         if self.check(type):
             return self.advance()
         
@@ -233,6 +237,9 @@ class Parser():
         return deque(["Var", name, ini])
     
     def statement(self): # statement -> expressionStmt | ifStmt | printlStmt | block ;
+        if self.check("R_BRACE"):
+            return None
+        
         if self.match("IF"):
             return self.ifStmt()
         elif self.match("WHILE"):
@@ -260,6 +267,113 @@ class Parser():
             self.expect("L_BRACE", "Missing \"{\" after else condition")
             elseBr = self.block()
         return deque(["If", condition, thenBr, elseBr])
+    
+    def whileStmt(self): # ifStmt -> "while" expression block ;
+        condition = self.expression()
+        self.expect("L_BRACE", "Missing \"{\" after while condition")
+        body = self.block()
+        return deque(["While", condition, body])
+    
+    def printlStmt(self): # printlStmt -> "printl" expression ";" ;
+        value = self.expression()
+        self.expect("SEMICOLON", "Missing semicolon after value")
+        return deque(["Printl", value])
+    
+    def block(self): # block -> "{" declaration* "}"
+        stmts = deque()
+        while not self.check("R_BRACE") and self.peek() != "EOF":
+            stmt = self.declaration()
+            if stmt is not None:
+                stmts.append(stmt)
+        self.expect("R_BRACE", "Missing \"}\" after block")
+        return stmts
+    
+    def expression(self): # expression -> assignment;
+        return self.assignment()
+    
+    def assignment(self):
+        expr = self.logicOr()
+        if self.match("EQUAL"): # equals? haha o tom jsem vůbec neslyšel neee neee
+            val = self.assignment()
+
+            if expr[0] == "Variable":
+                expr.popleft() # Zbavuji se typu tokenu, zůstává nám jen jméno
+                name = expr[0]
+                return deque(["Assign", name, val])
+            self.error(val, "Invalid target assignment")
+        return expr
+    
+    def logicOr(self):
+        expr = self.logicAnd()
+        op = self.peek()
+        while self.match("OR"):
+            right = self.logicAnd()
+            expr = deque(["Logical", expr, op, right])
+        return expr
+    
+    def logicAnd(self):
+        expr = self.equality()
+        op = self.peek()
+        while self.match("AND"):
+            right = self.equality()
+            expr = deque(["Logical", expr, op, right])
+        return expr
+    
+    def equality(self):
+        expr = self.comparison()
+        op = self.peek()
+        while self.match("EXCL_EQUAL", "EQUAL_EQUAL"):
+            right = self.comparison()
+            expr = deque(["Binary", expr, op, right])
+        return expr
+    
+    def comparison(self):
+        expr = self.term()
+        op = self.peek()
+        while self.match("GREAT", "GREAT_EQUAL", "LESS", "LESS_EQUAL"):
+            right = self.term()
+            expr = deque(["Binary", expr, op, right])
+        return expr
+    
+    def term(self):
+        expr = self.factor()
+        op = self.peek()
+        while self.match("PLUS", "MINUS"):
+            right = self.factor()
+            expr = deque(["Binary", expr, op, right])
+        return expr
+    
+    def factor(self):
+        expr = self.primary()
+        op = self.peek()
+        while self.match("STAR", "SLASH"):
+            right = self.primary()
+            expr = deque(["Binary", expr, op, right])
+        return expr
+    
+    # IMPLEMENTOVAT UNÁRNÍ OPERACE
+    
+    def primary(self): # primary -> NUMBER | STRING | "true" | "false" | "null" | "(" expression ")" | IDENTIFIER ; 
+        item = self.tokens[0]
+        if self.match("NUMBER") or self.match("STRING"):
+            return deque(["Literal", item[0]])
+        
+        elif self.match("TRUE"):
+            return deque(["Literal", True])
+        elif self.match("FALSE"):
+            return deque(["Literal", False])
+        elif self.match("NULL"):
+            return deque(["Literal", None])
+
+        elif self.match("L_PARENS"):
+            expr = self.expression()
+            self.expect("R_PARENS", "Missing \")\" after expression.")
+            return deque(["Group", expr])
+        
+        elif self.match("IDENTIFIER"):
+            return deque(["Variable", item])
+        
+        self.error(self.peek(), "Missing expression")
     
     # Main parsing function
     
