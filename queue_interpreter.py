@@ -18,7 +18,7 @@ from collections import deque
 
 user_code = "var x = 1 * 2 + 6 / 2; // This is a comment //"
 
-user_code = "var x = 0; if x == 1 {while true {printl 1;}} if x == 0 {printl 0;}"
+user_code = "var x = 1; if x == 1 {while true {printl 1;}} if x == 0 {printl 0;}"
 
 def error(position, message):
     report(position, "", message)
@@ -76,7 +76,7 @@ class Lexer():
                 while self.cur < len(self.code) and self.code[self.cur].isnumeric():
                     self.chars += self.code[self.cur]
                     self.cur += 1
-                self.tokens.append(deque(["NUMBER", int(self.chars)]))
+                self.tokens.append(deque(["NUMBER", float(self.chars)]))
             
             elif self.code[self.cur] == '"':        # Stringy
                 self.cur += 1
@@ -175,6 +175,25 @@ class Lexer():
 
 # Parser
 
+"""
+Parser vrací následující deque:
+Statements
+ - Var (name, initializator)
+ - Block (content)
+ - ExpressionStmt (expression)
+ - If (condition, thenBranch, elseBranch)
+ - While (condition, block)
+ - Printl (value)
+Expression
+ - Assign (name, value)
+ - Logical (expression, operator, right)
+ - Binary (expression, operator, right)
+ - Unary (operator, right)
+ - Literal (value)
+ - Group (expression)
+ - Variable (name)
+"""
+
 
 class CParserError(RuntimeError): pass
 
@@ -258,20 +277,23 @@ class Parser():
     def ifStmt(self): # ifStmt -> "if" expression block ("else" block)? ;
         condition = self.expression()
         self.expect("L_BRACE", "Missing \"{\" after if condition")
-        thenBr = self.block()
+        thenBr = deque(["Block"])
+        thenBr.append(self.block())
 
         # IMPLEMENTOVAT ELSEIF
 
         elseBr = None
         if self.match("ELSE"):
             self.expect("L_BRACE", "Missing \"{\" after else condition")
-            elseBr = self.block()
+            elseBr = deque(["Block"])
+            elseBr.append(self.block())
         return deque(["If", condition, thenBr, elseBr])
     
     def whileStmt(self): # ifStmt -> "while" expression block ;
         condition = self.expression()
         self.expect("L_BRACE", "Missing \"{\" after while condition")
-        body = self.block()
+        body = deque(["Block"])
+        body.append(self.block())
         return deque(["While", condition, body])
     
     def printlStmt(self): # printlStmt -> "printl" expression ";" ;
@@ -351,7 +373,12 @@ class Parser():
             expr = deque(["Binary", expr, op, right])
         return expr
     
-    # IMPLEMENTOVAT UNÁRNÍ OPERACE
+    def unary(self):
+        op = self.peek()
+        if self.match("EXCL", "MINUS"):
+            right = self.unary()
+            return deque(["Unary", op, right])
+        return self.primary()
     
     def primary(self): # primary -> NUMBER | STRING | "true" | "false" | "null" | "(" expression ")" | IDENTIFIER ; 
         item = self.tokens[0]
@@ -371,7 +398,7 @@ class Parser():
             return deque(["Group", expr])
         
         elif self.match("IDENTIFIER"):
-            return deque(["Variable", item])
+            return deque(["Variable", item[0]])
         
         self.error(self.peek(), "Missing expression")
     
@@ -388,6 +415,241 @@ class Parser():
         
         except CParserError as e:
             return e
+        
+
+# Environment
+
+class Environment():
+    def __init__(self, enclosing=None):
+        self.vals = {} 
+        self.enclosing = enclosing
+
+    def create(self, name, val):
+        self.vals[name] = val
+    
+    def retrieve(self, name):
+        if name in self.vals:
+            return self.vals[name]
+
+        if not self.enclosing == None:
+                return self.enclosing.retrieve(name)
+        
+        raise CRuntimeError(name, f"Undefined variable \"{name}\"")
+    
+    def assign(self, name, val):
+        if name in self.vals:
+            self.vals[name] = val
+            return
+
+        if not self.enclosing == None:
+                self.enclosing.assign(name, val)
+                return
+        
+        raise CRuntimeError(name, f"Undefined variable {name}")
+
+
+# Interpreter
+
+
+class CRuntimeError(RuntimeError):
+    def __init__(self, token, message, *args):
+        self.message = message
+        self.token = token
+        super().__init__(*args)
+
+class Interpreter():
+    def __init__(self):
+        self.env = Environment()
+
+    # Potřebné funkce (ano je to monstrózní)
+
+    def execute(self, stmt):
+        if stmt[0] == "Var": return self.var(stmt)
+        elif stmt[0] == "ExpressionStmt": return self.expression(stmt)
+        elif stmt[0] == "Printl": return self.printl(stmt)
+        elif stmt[0] == "If": return self.ifStmt(stmt)
+        elif stmt[0] == "While": return self.whileStmt(stmt)
+        elif stmt[0] == "Block": return self.block(stmt)
+        raise CRuntimeError(stmt, "Fatal Runtime Error; This message should not be seen")
+
+    def evaluate(self, expr):
+        if expr[0] == "Assign": return self.assign(expr)
+        elif expr[0] == "Logical": return self.logical(expr)
+        elif expr[0] == "Binary": return self.binary(expr)
+        elif expr[0] == "Literal": return self.literal(expr)
+        elif expr[0] == "Unary": return self.unary(expr)
+        elif expr[0] == "Group": return self.group(expr)
+        elif expr[0] == "Variable": return self.variable(expr)
+        raise CRuntimeError(expr, "Fatal Runtime Error; This message should not be seen")
+    
+    def isTrue(self, object):
+        if object == None:
+            return False
+        elif isinstance(object, bool):
+            return bool(object)
+        elif object == "":
+            return False
+        elif object <= 0:
+            return False
+        return True
+    
+    def isEqual(self, left, right):
+        if left == None and right == None:
+            return True
+        elif left == None:
+            return False
+        return left == right
+    
+    # Statements
+    
+    def var(self, stmt):
+        _, name, ini = stmt
+        val = None
+        if not ini == None:
+            val = self.evaluate(ini)
+        self.env.create(name, val)
+        return None
+    
+    def ifStmt(self, stmt):
+        _, condition, thenBr, elseBr = stmt
+        if self.isTrue(self.evaluate(condition)):
+            self.block(thenBr)
+        elif elseBr != None:
+            self.block(elseBr)
+        return None
+    
+    def printl(self, stmt):
+        _, value = stmt
+        value = self.evaluate(value)
+        if value == None:
+            print("null")
+        elif value == True and isinstance(value, bool):
+            print("true")
+        elif value == False and isinstance(value, bool):
+            print("false")
+        else:
+            print(value)
+    
+    def expression(self, stmt):
+        _, expr = stmt
+        self.evaluate(expr)
+        return None
+    
+    def whileStmt(self, stmt):
+        _, condition, block = stmt
+        while self.isTrue(self.evaluate(condition)):
+            self.block(block)
+        return None
+    
+    def block(self, stmt):
+        _, content = stmt
+        self.execBlock(content, Environment(self.env))
+        return None
+    
+    def execBlock(self, stmts, env):
+        previous = self.env
+        try:
+            self.env = env
+
+            for stmt in stmts:
+                self.execute(stmt)
+        finally:
+            self.env = previous
+    
+    # Expressions
+
+    def literal(self, expr):
+        _, val = expr
+        return val
+    
+    def group(self, expr):
+        _, expression = expr
+        return self.evaluate(expression)
+    
+    def variable(self, expr):
+        _, name = expr
+        return self.env.retrieve(name)
+    
+    def logical(self, expr):
+        _, left, operator, right = expr
+        left = self.evaluate(left)
+        if operator == "OR":
+            if self.isTrue(left):
+                return left
+        else:
+            if not self.isTrue(left):
+                return left
+        return self.evaluate(right)
+    
+    def unary(self, expr):
+        _, operator, right = expr
+        right = self.evaluate(right)
+
+        match operator:
+            case "MINUS":
+                return -float(right)
+            case "EXCL":
+                return not self.isTrue(right)
+        return None
+    
+    def binary(self, expr):
+        _, left, operator, right = expr
+        left = self.evaluate(left)
+        right = self.evaluate(right)
+
+        match operator:
+            case "PLUS":
+                if isinstance(left, float) and isinstance(right, float) or isinstance(left, int) and isinstance(right, int):  # Sčítání čísel.
+                    return float(left + right)
+                elif isinstance(left, str) and isinstance(right, str):  # Sčítání řetězců
+                    return str(left + right)
+            
+            case "MINUS":
+                # error check here
+                return float(left - right)
+
+            case "STAR":
+                # error check here
+                return float(left * right)
+            
+            case "SLASH":
+                # error check here
+                return float(left / right)
+            
+            case "GREAT":
+                return left > right
+            
+            case "GREAT_EQUAL":
+                return left >= right
+            
+            case "LESS":
+                return left < right
+            
+            case "LESS_EQUAL":
+                return left <= right
+            
+            case "EXCL_EQUAL":
+                return not self.isEqual(left, right)
+            
+            case "EQUAL_EQUAL":
+                return self.isEqual(left, right)
+    
+    def assign(self, expr):
+        _, name, val = expr
+        val = self.evaluate(val)
+        self.env.assign(name, val)
+        return val
+
+    # Main Loop Function
+    
+    def interpret(self, program):
+        try:
+            for statement in program:
+                self.execute(statement)
+        # except CRuntimeError as e:
+        #     runtimeError(e)
+        except KeyboardInterrupt:
+            print("PROGRAM INTERRUPTED BY USER")
 
 if __name__ == "__main__":
     hadError = False
@@ -400,3 +662,6 @@ if __name__ == "__main__":
     parser = Parser(lexer_out)
     parser_out = parser.parse()
     print("PARSER OUTPUT: " + str(parser_out))
+
+    ip = Interpreter()
+    ip.interpret(parser_out)

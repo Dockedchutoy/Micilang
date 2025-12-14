@@ -18,7 +18,7 @@ user_code = 'var x = 1 * 2 + 6 / 2; // 5\nprintl x;'      # Tady půjde Micilang
 
 user_code = 'var x = 2; var y = 2; printl x + y;'
 
-user_code = 'var x = 1; if x == 1 {while true {printl x;}} else {printl x;}'
+user_code = '1; var x = 0; if x == 1 {while true {printl x;}} else {printl x;}'
 
 # Error reporting
 
@@ -720,7 +720,7 @@ class Interpreter():
             if self.isTrue(left):
                 return left
         else:
-            if not self.isTrue(self):
+            if not self.isTrue(left):
                 return left
         return self.evaluate(expr.right)
 
