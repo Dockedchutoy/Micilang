@@ -16,9 +16,6 @@ from collections import deque
 
 user_code = 'var x = 1 * 2 + 6 / 2; // 5\nprintl x;'      # Tady půjde Micilang kód. Soubory a shell vymyslím později.
 
-user_code = 'var x = 2; var y = 2; printl x + y;'
-
-user_code = '1; var x = 0; if x == 1 {while true {printl x;}} else {printl x;}'
 
 # Error reporting
 
@@ -42,8 +39,7 @@ class Lexer():
 
         self.code = code
 
-        self.KEYWORDS = ["VAR", "PRINTL", "IF", "ELSEIF", "ELSE", "FUNC!", "WHILE",         # Statementy
-                "INPUT!", "NUM!",        # Funkce
+        self.KEYWORDS = ["VAR", "PRINTL", "IF", "ELSEIF", "ELSE", "FUNC", "WHILE", "RETURN"        # Statementy
                 "TRUE", "FALSE", "NULL", "AND", "OR"]                       # Další speciální
 
         self.tokens = [] # Veškeré tokeny
@@ -167,6 +163,10 @@ class Lexer():
             elif self.code[self.cur] == "}":
                 self.tokens.append(("R_BRACE", "}"))
                 self.cur += 1
+            
+            elif self.code[self.cur] == ",":
+                self.tokens.append(("COMMA", ","))
+                self.cur += 1
         
             elif self.code[self.cur] == " " or self.code[self.cur] == "\n":
                 self.cur += 1
@@ -268,6 +268,29 @@ class Assign(Expr):
 
     def accept(self, visitor):
         return visitor.visitAssign(self)
+    
+class Call(Expr):
+    def __init__(self, caller, parens, args):
+        self.caller = caller
+        self.parens = parens
+        self.args = args
+    
+    def __repr__(self):
+        return f"Call_{self.caller}({self.parens}, {self.args})"
+
+    def accept(self, visitor):
+        return visitor.visitCall(self)
+    
+class Return(Expr):
+    def __init__(self, kw, val):
+        self.kw = kw
+        self.val = val
+    
+    def __repr__(self):
+        return f"Return_{self.kw}({self.val})"
+
+    def accept(self, visitor):
+        return visitor.visitReturn(self)
 
 class Stmt():
     pass
@@ -335,6 +358,18 @@ class Block(Stmt):     # block of code;
 
     def accept(self, visitor):
         return visitor.visitBlock(self)
+    
+class Function(Stmt):     # block of code;
+    def __init__(self, name, params, body):
+        self.name = name
+        self.params = params
+        self.body = body
+    
+    def __repr__(self):
+        return f"Function_{self.name}({self.params}, {self.body})"
+
+    def accept(self, visitor):
+        return visitor.visitFunc(self)
 
 
 # Parser (asi se zastřelim)
@@ -397,11 +432,24 @@ class Parser():
         try:
             if self.match("VAR"):
                 return self.varDeclaration()
+            elif self.match("FUNC"):
+                return self.func()
             return self.statement()
         except CParserError as e:
             print("o shit")
             self.sync()
             return None
+        
+    def func(self):
+        name = self.expect("IDENTIFIER", "Missing function name")
+        params = []
+        while not self.check("L_BRACE"):
+            params.append(self.expect("IDENTIFIER", "Invalid parameter name"))
+            while self.match("COMMA"):
+                params.append(self.expect("IDENTIFIER", "Invalid parameter name"))
+        self.expect("L_BRACE", "Missing \"{\" in function declaration")
+        body = self.block()
+        return Function(name, params, body)
         
     def varDeclaration(self): # varDeclaration -> "var" IDENTIFIER ( "=" expression )? ";" ;
         name = self.expect("IDENTIFIER", "Missing variable name")
@@ -420,6 +468,8 @@ class Parser():
             return self.printlStmt()
         elif self.match("L_BRACE"):
             return Block(self.block())
+        elif self.match("RETURN"):
+            return self.returnStmt()
         return self.expressionStmt()
     
     def expressionStmt(self): # expressionStmt -> expression ";" ;
@@ -457,6 +507,14 @@ class Parser():
             statements.append(self.declaration())
         self.expect("R_BRACE", "Missing \"}\" after block")
         return statements
+    
+    def returnStmt(self):
+        kw = self.previous()
+        val = None
+        if not self.check("SEMICOLON"):
+            val = self.expression()
+        self.expect("SEMICOLON", "Missing semicolon after return")
+        return Return(kw, val)
     
     def expression(self): # expression -> assignment;
         return self.assignment()
@@ -514,10 +572,10 @@ class Parser():
         return expr
 
     def factor(self): # factor -> primary ( ( "/" | "*" ) primary )* ;
-        expr = self.primary()
+        expr = self.unary()
         while self.match("STAR", "SLASH"):
             op = self.previous()
-            right = self.primary()
+            right = self.unary()
             expr = Binary(expr, op[0], right)
         return expr
     
@@ -526,6 +584,26 @@ class Parser():
             op = self.previous()
             right = self.unary()
             return Unary(op, right)
+        return self.call()
+    
+    def call(self): # call -> primary ( "(" arguments  ")" )? ;
+        expr = self.primary()
+
+        if self.match("L_PARENS"):
+            expr = self.arguments(expr)
+        
+        return expr
+    
+    def arguments(self, caller): # arguments -> expression ( "," expression )* ;
+        args = []
+        if not self.check("R_PARENS"):
+            args.append(self.expression())
+            while self.match("COMMA"):
+                args.append(self.expression())
+        parens = self.expect("R_PARENS", "Missing \")\" after arguments")
+
+        return Call(caller, parens, args)
+
 
     def primary(self): # primary -> NUMBER | STRING | "true" | "false" | "null" | "(" expression ")" | IDENTIFIER ; 
         if self.match("NUMBER") or self.match("STRING"):
@@ -595,6 +673,55 @@ class Environment():
         raise CRuntimeError(name, f"Undefined variable {name[1]}")
 
 
+# Základní knihovna
+
+
+class BaseFunction():
+    def __init__(self):
+        pass
+        
+    def arity(self):
+        return 0
+    
+    def call(self, ip, args):
+        pass
+
+class CustomFunction(BaseFunction):
+    def __init__(self, decl):
+        self.decl = decl
+        super().__init__()
+    
+    def arity(self):
+        return len(self.decl.params)
+    
+    def __str__(self):
+        return f"<func {self.decl}>"
+    
+    def call(self, ip, args):
+        env = Environment(ip.globals)
+        for i in range(len(self.decl.params)):
+            env.create(self.decl.params[i][1], args[i])
+
+        try:
+            ip.execBlock(self.decl.body, env)
+        except ExecReturn as e:
+            return e.val
+        return None
+
+class Inputl(BaseFunction):
+    def __init__(self):
+        super().__init__()
+    
+    def arity(self):
+        return super().arity()
+    
+    def call(self, ip, args):
+        if len(args) > 0:
+            return input(args[0])
+        else:
+            return input()
+
+
 # Interpreter
 
 
@@ -604,10 +731,17 @@ class CRuntimeError(RuntimeError):
         self.token = token
         super().__init__(*args)
 
+class ExecReturn(RuntimeError):
+    def __init__(self, val):
+        self.val = val
+
 
 class Interpreter():
     def __init__(self):
         self.env = Environment()
+        self.globals = self.env
+
+        self.globals.create("inputl", Inputl())
 
     def checkNumOp(self, operator, operand):
         if isinstance(operand, float):
@@ -663,7 +797,7 @@ class Interpreter():
 
     def visitPrintl(self, stmt):    # Příkaz printl
         value = self.evaluate(stmt.expression)
-        
+
         if value == None:
             print("null")
         elif value == True and isinstance(value, bool):
@@ -679,6 +813,17 @@ class Interpreter():
             val = self.evaluate(stmt.ini)
         self.env.create(stmt.name[1], val)
         return None
+    
+    def visitFunc(self, stmt):
+        func = CustomFunction(stmt)
+        self.env.create(stmt.name[1], func)
+        return None
+    
+    def visitReturn(self, stmt):
+        val = None
+        if not stmt.val == None:
+            val = self.evaluate(stmt.val)
+        raise ExecReturn(val)
     
     def visitBlock(self, stmt):
         self.execBlock(stmt.stmts, Environment(self.env))
@@ -712,6 +857,20 @@ class Interpreter():
                 return not self.isTrue(right)
             
         return None
+    
+    def visitCall(self, expr):
+        caller = self.evaluate(expr.caller)
+        args = []
+        for arg in expr.args:
+            args.append(self.evaluate(arg))
+
+        if not isinstance(caller, BaseFunction):
+            raise CRuntimeError(expr.parens, "Invalid function call")
+
+        func = caller # edit
+        if len(args) < func.arity():
+            raise CRuntimeError(expr.parens, "Not enough arguments")
+        return func.call(self, args)
     
     def visitLogical(self, expr):
         left = self.evaluate(expr.left)
