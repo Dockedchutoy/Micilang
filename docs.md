@@ -27,9 +27,12 @@ Micilang má několik použitelných statementů:
 + <code>var *name* = *value*;</code> - Vytvoří proměnnou *name*, která má *value*
 + <code>if *condition* {*thenBranch*}</code> - Provede kód obsažený v *thenBranch*, pokud *condition* vrátí true.
 + <code>else {*elseBranch*}</code> - Součást if statementu, pokud je *condition* false, provede *elseBranch*.
++ <code>while *condition* {*whileBlock*}</code> - opakovaně provádí *whileBlock*, dokud *condition* vrací true.
++ <code>func *name* *arguments\** {funcBlock}</code> - Vytvoří funkci zvanou *name* a argumenty *arguments*, který provádí po vyvolání kód v *funcBlock*.
++ <code>return *value*;</code> - Ukončí průběh dané funkce a vrátí hodnotu *value*.
 
 ### Funkce
 
 Micilang má ještě základní knihovnu vestavěných funkcí. Zde je celý jejich seznam:
 
-+ <code>inputl(*value*)</code> - Vrátí vstup od uživatele, který je přijímán na novém řádku. *value* se ukáže před vstupem, může být prázdný.
++ <code>inputl(*value*);</code> - Vrátí vstup od uživatele, který je přijímán na novém řádku. *value* se ukáže před vstupem, může být prázdný.
