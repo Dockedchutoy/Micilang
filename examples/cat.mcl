@@ -1,2 +1,2 @@
-var command = input; // Input je příkaz pro přijmutí vstupu od uživatele
-printl command;
+var imp = inputl(); // Input je příkaz pro přijmutí vstupu od uživatele
+printl imp;

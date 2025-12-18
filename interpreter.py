@@ -19,15 +19,18 @@ user_code = 'var x = 1 * 2 + 6 / 2; // 5\nprintl x;'      # Tady půjde Micilang
 
 # Error reporting
 
+hadError = False
+hadRuntimeError = False
+
 def error(position, message):
     report(position, "", message)
 
 def report(position, item, message):
-    print(f"[{position}] Error {item}: {message}")
+    print(f"[{position}] Error{item}: {message}")
     hadError = True
 
 def runtimeError(error):
-    print(f"[{error.token}] {error.message}")
+    print(f"[{error.token}] Error: {error.message}")
     hadRuntimeError = True
 
 
@@ -74,7 +77,7 @@ class Lexer():
                 while self.cur < len(self.code) and self.code[self.cur].isnumeric():
                     self.chars += self.code[self.cur]
                     self.cur += 1
-                self.tokens.append(("NUMBER", int(self.chars)))
+                self.tokens.append(("NUMBER", float(self.chars)))
             
             elif self.code[self.cur] == '"':        # Stringy
                 self.cur += 1
@@ -168,11 +171,12 @@ class Lexer():
                 self.tokens.append(("COMMA", ","))
                 self.cur += 1
         
-            elif self.code[self.cur] == " " or self.code[self.cur] == "\n":
+            elif self.code[self.cur] == " " or self.code[self.cur] == "\n" or self.code[self.cur] == "\t":
                 self.cur += 1
 
             else: # Pro mezery/ostatní znaky ignorovat zatim
                 error(self.cur, f"Invalid Character \"{self.code[self.cur]}\"")
+                self.cur += 1
 
             self.chars = ""
     
@@ -436,8 +440,9 @@ class Parser():
                 return self.func()
             return self.statement()
         except CParserError as e:
-            print("o shit")
             self.sync()
+            global hadError
+            hadError = True
             return None
         
     def func(self):
@@ -638,7 +643,8 @@ class Parser():
             return program
         
         except CParserError as e:
-            return e
+            global hadError
+            hadError = True
 
 
 # Environment (pro interpretík :3)
@@ -663,7 +669,7 @@ class Environment():
     
     def assign(self, name, val):
         if name[1] in self.vals:
-            self.vals[name] = val
+            self.vals[name[1]] = val
             return
 
         if not self.enclosing == None:
@@ -715,11 +721,32 @@ class Inputl(BaseFunction):
     def arity(self):
         return super().arity()
     
+    def __repr__(self):
+        return f"<func inputl>"
+    
     def call(self, ip, args):
         if len(args) > 0:
             return input(args[0])
         else:
             return input()
+        
+class Exiption(Exception):
+    def __init__(self, *args):
+        super().__init__(*args)
+
+class Exit(BaseFunction):
+    def __init__(self):
+        super().__init__()
+    
+    def arity(self):
+        return super().arity()
+    
+    def __repr__(self):
+        return f"<func exit>"
+    
+    def call(self, ip, args):
+        raise Exiption
+
 
 
 # Interpreter
@@ -742,6 +769,7 @@ class Interpreter():
         self.globals = self.env
 
         self.globals.create("inputl", Inputl())
+        self.globals.create("exit", Exit())
 
     def checkNumOp(self, operator, operand):
         if isinstance(operand, float):
@@ -785,14 +813,14 @@ class Interpreter():
     
     def visitIf(self, stmt):
         if self.isTrue(self.evaluate(stmt.condition)):
-            self.execBlock(stmt.thenBr, Environment(self.env))
+            self.execBlock(stmt.thenBr, self.env)
         elif stmt.elseBr != None:
-            self.execBlock(stmt.elseBr, Environment(self.env))
+            self.execBlock(stmt.elseBr, self.env)
         return None
     
     def visitWhile(self, stmt):
         while self.isTrue(self.evaluate(stmt.condition)):
-            self.execBlock(stmt.body, Environment(self.env))
+            self.execBlock(stmt.body, self.env)
         return None
 
     def visitPrintl(self, stmt):    # Příkaz printl
@@ -850,7 +878,7 @@ class Interpreter():
     def visitUnary(self, expr):
         right = self.evaluate(expr.right)
 
-        match self.operator:
+        match expr.operator:
             case "MINUS":
                 return -float(right)
             case "EXCL":
@@ -938,58 +966,69 @@ class Interpreter():
     
     def interpret(self, program):
         try:
+
             for statement in program:
                 self.execute(statement)
         except CRuntimeError as e:
             runtimeError(e)
-        except KeyboardInterrupt:
-            print("EXECUTION INTERRUPTED BY USER")
 
 
 # Hl. loop
 
 
 if __name__ == "__main__":
-    hadError = False
-    hadRuntimeError = False
+    fileMode = False
 
     try:
         if not sys.argv[1].endswith(".mcl"):
             print("Warning: File does not use the Micilang file extension (.mcl)")
         with open(sys.argv[1],  encoding="utf_8") as f:  # Python asi nepoznává, co je kurva .mcl, tak musíme to donutit do utf-8. Kdyby byl encoding jinej, bylo by zle, ale... kdo by kurva nepoužíval utf-8??
             user_code = f.read()
+            
+            fileMode = True
+    
+    except IndexError:
+        print("Micilang Terminal Mode")
+    
+    except FileNotFoundError:
+        print(f"Error: File not found at {sys.argv[1]}")
 
+    if fileMode:
+        try:
             lexer = Lexer(user_code)
             lex_out = lexer.gettokens()
 
             parser = Parser(lex_out)
             parse_out = parser.parse()
 
-            interpreter = Interpreter()
-            interpreter.interpret(parse_out)
+            if not hadError:
+
+                interpreter = Interpreter()
+                interpreter.interpret(parse_out)
+        except KeyboardInterrupt:
+            print("PROGRAM INTERRUPTED BY USER")
+        except Exiption:
+            pass
     
-    except IndexError as e:
-        print("Micilang Terminal Mode")
-        while True:
+    else:
+        running = True
+        while running:
             user_code = input(" MCL>")
 
-            lexer = Lexer(user_code)
-            lex_out = lexer.gettokens()
+            try:
+                lexer = Lexer(user_code)
+                lex_out = lexer.gettokens()
 
-            parser = Parser(lex_out)
-            parse_out = parser.parse()
+                parser = Parser(lex_out)
+                parse_out = parser.parse()
+
+                if hadError:
+                    continue
             
-            interpreter = Interpreter()
-            interpreter.interpret(parse_out)
-
-
-    lexer = Lexer(user_code)
-    lexer_out = (lexer.gettokens())
-    print("LEXER OUTPUT: " + str(lexer_out))
-
-    parser = Parser(lexer_out)
-    parser_out = parser.parse()
-    print("PARSER OUTPUT: " + repr(parser_out))
-
-    interpreter = Interpreter()
-    interpreter.interpret(parser_out)
+                interpreter = Interpreter()
+                interpreter.interpret(parse_out)
+            except KeyboardInterrupt:
+                print("PROGRAM INTERRUPTED BY USER")
+            except Exiption:
+                running = False
+                break
