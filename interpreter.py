@@ -42,7 +42,7 @@ class Lexer():
 
         self.code = code
 
-        self.KEYWORDS = ["VAR", "PRINTL", "IF", "ELSEIF", "ELSE", "FUNC", "WHILE", "RETURN"        # Statementy
+        self.KEYWORDS = ["VAR", "PRINTL", "IF", "ELSEIF", "ELSE", "FUNC", "WHILE", "RETURN",        # Statementy
                 "TRUE", "FALSE", "NULL", "AND", "OR"]                       # Další speciální
 
         self.tokens = [] # Veškeré tokeny
@@ -165,6 +165,14 @@ class Lexer():
 
             elif self.code[self.cur] == "}":
                 self.tokens.append(("R_BRACE", "}"))
+                self.cur += 1
+            
+            elif self.code[self.cur] == "[":
+                self.tokens.append(("L_BRACKET", "["))
+                self.cur += 1
+
+            elif self.code[self.cur] == "]":
+                self.tokens.append(("R_BRACKET", "]"))
                 self.cur += 1
             
             elif self.code[self.cur] == ",":
@@ -729,6 +737,32 @@ class Inputl(BaseFunction):
             return input(args[0])
         else:
             return input()
+
+class Ordinal(BaseFunction):
+    def __init__(self):
+        super().__init__()
+    
+    def arity(self):
+        return 1
+    
+    def __repr__(self):
+        return f"<func ordinal>"
+    
+    def call(self, ip, args):
+        return ord(float(args[0]))
+    
+class Char(BaseFunction):
+    def __init__(self):
+        super().__init__()
+    
+    def arity(self):
+        return 1
+    
+    def __repr__(self):
+        return f"<func char>"
+    
+    def call(self, ip, args):
+        return chr(int(args[0]))
         
 class Exiption(Exception):
     def __init__(self, *args):
@@ -770,6 +804,8 @@ class Interpreter():
 
         self.globals.create("inputl", Inputl())
         self.globals.create("exit", Exit())
+        self.globals.create("ordinal", Ordinal())
+        self.globals.create("char", Char())
 
     def checkNumOp(self, operator, operand):
         if isinstance(operand, float):
@@ -1018,6 +1054,7 @@ if __name__ == "__main__":
             try:
                 lexer = Lexer(user_code)
                 lex_out = lexer.gettokens()
+                print(lex_out)
 
                 parser = Parser(lex_out)
                 parse_out = parser.parse()

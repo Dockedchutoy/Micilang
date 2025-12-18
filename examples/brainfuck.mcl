@@ -7,14 +7,14 @@ ts hinges on literally these:
 
 var tape = [0, 0, 0, 0, 0, 0, 0, 0]; // length 8
 
-func tape_left(n) { // je tohle efektivní??? NEEEE!!! je tohle lehčí na vymýšlení??? ANNNOOOOOO!!!!
+func tape_left n { // je tohle efektivní??? NEEEE!!! je tohle lehčí na vymýšlení??? ANNNOOOOOO!!!!
   var i = 0;
-  var prev = tape.peek; // ill think of butter later
+  var prev = tape.peek(); // ill think of butter later
   
   while i != n {
     tape.remove; // remove element
     tape.add(prev); // add element
-    prev = tape.peek; // new element to be removed
+    prev = tape.peek(); // new element to be removed
     i + 1;
   }
 }

@@ -1,0 +1,70 @@
+///
+bf.mcl
+Micilang implementation of brainfuck.
+Works with 7 variables, a-h (1-7).
+7 because the HW program uses 7 cells of the tape.
+Reads only one command at a time.
+///
+
+var pointer = 1; // starts at a
+
+var a = 0;
+var b = 0;
+var c = 0;
+var d = 0;
+var e = 0;
+var f = 0;
+var g = 0;
+
+var running = true;
+
+while running {
+	var cmd = inputl(" bf>");
+	
+	if cmd == "+" {
+		if pointer == 1 {
+			a = a + 1;
+		}
+		if pointer == 2 {
+			b = b + 1;
+		}
+		if pointer == 3 {
+			c = c + 1;
+		}
+		if pointer == 4 {
+			d = d + 1;
+		}
+		if pointer == 5 {
+			e = e + 1;
+		}
+		if pointer == 6 {
+			f = f + 1;
+		}
+		if pointer == 7 {
+			g = g + 1;
+		}
+	}
+	if cmd == "." {
+		if pointer == 1 {
+			printl char(a);
+		}
+		if pointer == 2 {
+			printl char(b);
+		}
+		if pointer == 3 {
+			printl char(c);
+		}
+		if pointer == 4 {
+			printl char(d);
+		}
+		if pointer == 5 {
+			printl char(e);
+		}
+		if pointer == 6 {
+			printl char(f);
+		}
+		if pointer == 7 {
+			printl char(g);
+		}
+	}
+}
