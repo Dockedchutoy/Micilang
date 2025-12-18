@@ -1,41 +1,35 @@
 # Micilang Docs
 
+UPOZORNĚNÍ: Dokumentace nemusí být zcela úplná a může mít zastaralé info.
+
 ## Příkazy
 
 ### Komentáře
 
-Jednořádkový kometář: <code>// Komentář</code>
+Komentáře jsou víceřádkové a značí se takto: <code>// Komentář zde //</code>
 
-Takové komntáře pokračují až do konce řádku
-
-Víceřádkový komentář: <code>/// Víceřádkový
-                                Komentář ///</code>
-
-Takové kometáře pokračují, dokud se znova neobjeví lomítka. Mohou se dávat mezi přikazy, ale ehhhhh moc bych na to nesázel.
-
-Komentáře jsou interpreterem zcela ignorovány.
+Komentáře jsou v lexeru ignorovány, spolu s mezerami a novými řádky.
 
 ### Datatypy
 
-Je pouze pár typů dát s rozdílnými úrovněmi funkcionality:
+Je pouze pár typů dat s rozdílnými úrovněmi funkcionality:
 
-+ <code>num</code> - Number - Prosté číslo, může být desetinné. Neznačí se ničím.
-+ <code>str</code> - String - Text. Značí se ". Ne apostrofy. Hmmm co kdybyh použil české apostrofy to by bylo vtipne
-+ <code>bool</code> - Boolean - Buďto <code>false</code> (0) nebo <code>true</code> (1).
-+ <code>null</code> - Null - Prázdná hodnota. V mat. a text. operacích ignorováno.
++ <code>num</code> - Number - Číslo, může, ale nemusí být desetinné. Čísla se při jakýchkoliv operacích převádí na desetinné.
++ <code>str</code> - String - Řetězec. Značí se stylem <code>"řetězec zde"</code>. Přemýšlím o podpoře českých uvozovek.
++ <code>bool</code> - Boolean - Buďto <code>false</code> nebo <code>true</code>.
++ <code>null</code> - Null - Prázdná hodnota.
 
-Ještě chyby spojené obecně s datatypy:
+### Statementy
+ 
+Micilang má několik použitelných statementů:
 
-+ <code>TypeError</code>: Invalid operation between incompatible types
++ <code>printl *value*;</code> - Na nový řádek vypíše na obrazovku *value*.
++ <code>var *name* = *value*;</code> - Vytvoří proměnnou *name*, která má *value*
++ <code>if *condition* {*thenBranch*}</code> - Provede kód obsažený v *thenBranch*, pokud *condition* vrátí true.
++ <code>else {*elseBranch*}</code> - Součást if statementu, pokud je *condition* false, provede *elseBranch*.
 
 ### Funkce
- 
-Zde je výběr Micilang funkcí a statementů:
 
-+ <code>write *output*;</code> - Vypíše na obrazovku *output*
-+ <code>var *x* = *value*;</code> - Vytvoří proměnnou *x*, která má *value*
-+ <code></code>
+Micilang má ještě základní knihovnu vestavěných funkcí. Zde je celý jejich seznam:
 
-Následující funkce nejsou součástí specifikace Micilangu. Nejsou tedy nedílnou součástí jazyku, a spíš jsou věci pro testování:
-
-+ <code>shell(*value*)</code> - Provede *value* jako program v Pythonu.
++ <code>inputl(*value*)</code> - Vrátí vstup od uživatele, který je přijímán na novém řádku. *value* se ukáže před vstupem, může být prázdný.
