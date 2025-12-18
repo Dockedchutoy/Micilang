@@ -954,11 +954,33 @@ if __name__ == "__main__":
     hadRuntimeError = False
 
     try:
-        if not sys.argv[1].endswith(".mcl"): print("Warning: File does not have Micilang file extension.")
-        with open(sys.argv[1], encoding="utf_8") as f:  # Python asi nepoznává, co je kurva .mcl, tak musíme to donutit do utf-8. Kdyby byl encoding jinej, bylo by zle, ale... kdo by kurva nepoužíval utf-8??
+        if not sys.argv[1].endswith(".mcl"):
+            print("Warning: File does not use the Micilang file extension (.mcl)")
+        with open(sys.argv[1],  encoding="utf_8") as f:  # Python asi nepoznává, co je kurva .mcl, tak musíme to donutit do utf-8. Kdyby byl encoding jinej, bylo by zle, ale... kdo by kurva nepoužíval utf-8??
             user_code = f.read()
+
+            lexer = Lexer(user_code)
+            lex_out = lexer.gettokens()
+
+            parser = Parser(lex_out)
+            parse_out = parser.parse()
+
+            interpreter = Interpreter()
+            interpreter.interpret(parse_out)
+    
     except IndexError as e:
         print("Micilang Terminal Mode")
+        while True:
+            user_code = input(" MCL>")
+
+            lexer = Lexer(user_code)
+            lex_out = lexer.gettokens()
+
+            parser = Parser(lex_out)
+            parse_out = parser.parse()
+            
+            interpreter = Interpreter()
+            interpreter.interpret(parse_out)
 
 
     lexer = Lexer(user_code)
