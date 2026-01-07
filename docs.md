@@ -36,3 +36,6 @@ Micilang má několik použitelných statementů:
 Micilang má ještě základní knihovnu vestavěných funkcí. Zde je celý jejich seznam:
 
 + <code>inputl(*value*);</code> - Vrátí vstup od uživatele, který je přijímán na novém řádku. *value* se ukáže před vstupem, může být prázdný.
++ <code>exit();</code> - Instantně ukončí program.
++ <code>ordinal(*value*);</code> - Vrátí číselnou podobu *value*. Určen převážně pro písmena, ale měl by fungovat s veškerými datatypy.
++ <code>char(*value*);</code> - Vrátí písmenovou podobu *value*. Určen spíše pro čísla.
